@@ -658,6 +658,7 @@ const NF = (() => {
     { name: 'allorigins', url: 'https://api.allorigins.win/raw?url=' },
     { name: 'corsproxy', url: 'https://api.cors.lol/?url=' },
   ];
+  const OGIMAGE_WORKER = 'https://cold-lab-15aeogimage-proxy.bruno-contrepoids.workers.dev/?url=';
   const DEFAULT_PROXY = CORS_PROXIES[0].url;
   const CATEGORY_COLORS = ['cat-a','cat-b','cat-c','cat-d','cat-e','cat-f'];
 
@@ -978,6 +979,26 @@ const NF = (() => {
     }
   }
 
+  // Récupérer og:image via Cloudflare Worker pour les articles sans vignette
+  async function fetchOgImages(articles) {
+    const noThumb = articles.filter(a => !a.thumb && a.link);
+    if (noThumb.length === 0) return;
+    // Traiter par lots de 5
+    for (let i = 0; i < noThumb.length; i += 5) {
+      const batch = noThumb.slice(i, i + 5);
+      await Promise.allSettled(batch.map(async (article) => {
+        try {
+          const resp = await fetch(OGIMAGE_WORKER + encodeURIComponent(article.link), { signal: AbortSignal.timeout(8000) });
+          const data = await resp.json();
+          if (data.image) article.thumb = data.image;
+        } catch {}
+      }));
+      renderArticles();
+    }
+    // Mettre à jour le cache localStorage
+    save('articles', state.articles.slice(0, 500));
+  }
+
   function extractImgFromHtml(html) {
     if (!html) return '';
     const match = html.match(/<img[^>]+src=["']([^"']+)["']/i);
@@ -1008,6 +1029,9 @@ const NF = (() => {
     renderSidebar();
     renderArticles();
     updateLastRefresh();
+
+    // Récupérer les vignettes manquantes via Cloudflare Worker
+    fetchOgImages(state.articles);
 
     const total = state.articles.length;
     const errors = state.feeds.filter(f => f.status === 'error').length;
