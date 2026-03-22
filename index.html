@@ -622,15 +622,35 @@
       <button class="nf-modal-close" onclick="NF.closeModal('settings')">&times;</button>
     </div>
     <div class="nf-modal-body">
-      <div class="nf-field">
-        <label class="nf-label">URL du proxy CORS</label>
-        <input class="nf-input" id="proxyUrl" placeholder="https://api.codetabs.com/v1/proxy?quest=">
-        <p style="font-size:11px;color:var(--muted);margin-top:6px">
-          Nécessaire pour récupérer les flux RSS depuis le navigateur.
-          Par défaut : <code>https://api.codetabs.com/v1/proxy?quest=</code> (avec fallback automatique)
+      <!-- Sync -->
+      <div style="margin-bottom:20px">
+        <div style="font-weight:700;font-size:14px;margin-bottom:8px;display:flex;align-items:center;gap:6px">
+          <i class="bi bi-arrow-repeat" style="color:var(--primary)"></i> Synchronisation
+        </div>
+        <p style="font-size:12px;color:var(--muted);margin-bottom:10px">
+          Entrez la même clé sur tous vos appareils pour synchroniser vos sources, articles lus et favoris.
         </p>
+        <div class="nf-field">
+          <label class="nf-label">Clé de synchronisation</label>
+          <div style="display:flex;gap:8px">
+            <input class="nf-input" id="syncKey" placeholder="Ex: mon-code-secret" style="flex:1">
+            <button class="nf-btn nf-btn-primary nf-btn-sm" onclick="NF.saveAndSync()"><i class="bi bi-arrow-repeat"></i> Synchroniser</button>
+          </div>
+        </div>
+        <div id="syncStatus" style="font-size:12px;margin-top:4px"></div>
       </div>
-      <button class="nf-btn nf-btn-primary nf-btn-sm" onclick="NF.saveProxy()">Enregistrer</button>
+      <div style="border-top:1px solid var(--line);padding-top:16px">
+        <div style="font-weight:700;font-size:14px;margin-bottom:8px;display:flex;align-items:center;gap:6px">
+          <i class="bi bi-hdd-network" style="color:var(--muted)"></i> Proxy CORS
+        </div>
+        <div class="nf-field">
+          <input class="nf-input" id="proxyUrl" placeholder="https://api.codetabs.com/v1/proxy?quest=">
+          <p style="font-size:11px;color:var(--muted);margin-top:6px">
+            Par défaut : fallback automatique multi-proxy.
+          </p>
+        </div>
+        <button class="nf-btn nf-btn-ghost nf-btn-sm" onclick="NF.saveProxy()">Enregistrer</button>
+      </div>
     </div>
   </div>
 </div>
@@ -650,7 +670,8 @@ const NF = (() => {
     articles: 'nf_articles',
     proxy: 'nf_proxy',
     theme: 'nf_theme',
-    sortMode: 'nf_sort'
+    sortMode: 'nf_sort',
+    syncKey: 'nf_sync_key'
   };
 
   const CORS_PROXIES = [
@@ -676,11 +697,14 @@ const NF = (() => {
   };
 
   // ── Persistence ──
+  const SYNC_KEYS = new Set(['feeds', 'categories', 'readArticles', 'bookmarks']);
+
   function save(key, data) {
     try {
       localStorage.setItem(STORAGE_KEYS[key], JSON.stringify(
         data instanceof Set ? [...data] : data
       ));
+      if (SYNC_KEYS.has(key) && typeof schedulePushSync === 'function') schedulePushSync();
     } catch (e) { console.warn('Storage error:', e); }
   }
 
@@ -1729,11 +1753,91 @@ const NF = (() => {
     toast('Proxy CORS enregistré', 'success');
   }
 
+  // ── Synchronisation cloud ──
+  const SYNC_URL = OGIMAGE_WORKER.replace('?url=', '').replace(/\/$/, '') + '/sync?key=';
+
+  async function pushSync() {
+    const key = load('syncKey', '');
+    if (!key) return;
+    const data = {
+      feeds: state.feeds,
+      categories: state.categories,
+      readArticles: [...state.readArticles],
+      bookmarks: [...state.bookmarks],
+      updatedAt: Date.now()
+    };
+    try {
+      await fetch(SYNC_URL + encodeURIComponent(key), {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(data)
+      });
+    } catch (e) { console.warn('[Sync] Push échoué:', e.message); }
+  }
+
+  async function pullSync() {
+    const key = load('syncKey', '');
+    if (!key) return false;
+    try {
+      const resp = await fetch(SYNC_URL + encodeURIComponent(key));
+      const data = await resp.json();
+      if (!data.feeds) return false;
+
+      // Fusionner : prendre les données les plus récentes
+      state.feeds = data.feeds;
+      state.categories = data.categories || [];
+      // Fusionner readArticles et bookmarks (union)
+      if (data.readArticles) data.readArticles.forEach(u => state.readArticles.add(u));
+      if (data.bookmarks) data.bookmarks.forEach(u => state.bookmarks.add(u));
+
+      save('feeds', state.feeds);
+      save('categories', state.categories);
+      save('readArticles', state.readArticles);
+      save('bookmarks', state.bookmarks);
+      return true;
+    } catch (e) {
+      console.warn('[Sync] Pull échoué:', e.message);
+      return false;
+    }
+  }
+
+  async function saveAndSync() {
+    const input = document.getElementById('syncKey');
+    const statusEl = document.getElementById('syncStatus');
+    const key = input.value.trim();
+    if (!key || key.length < 3) {
+      statusEl.innerHTML = '<span style="color:var(--danger-text)">3 caractères minimum</span>';
+      return;
+    }
+
+    save('syncKey', key);
+    statusEl.innerHTML = '<span style="color:var(--info-text)"><i class="bi bi-hourglass-split"></i> Synchronisation...</span>';
+
+    // Pull d'abord (récupérer les données distantes)
+    const pulled = await pullSync();
+    // Push ensuite (envoyer nos données fusionnées)
+    await pushSync();
+
+    if (pulled) {
+      renderSidebar();
+      renderArticles();
+      statusEl.innerHTML = '<span style="color:var(--success-text)"><i class="bi bi-check-circle"></i> Synchronisé — sources et préférences fusionnées</span>';
+      toast('Synchronisation réussie', 'success');
+    } else {
+      statusEl.innerHTML = '<span style="color:var(--success-text)"><i class="bi bi-check-circle"></i> Données envoyées (premier appareil)</span>';
+      toast('Données envoyées au cloud', 'success');
+    }
+  }
+
   // ── Modal ──
   function openModal(name) {
     const modal = document.getElementById('modal' + name.charAt(0).toUpperCase() + name.slice(1));
     if (!modal) return;
-    if (name === 'settings') { document.getElementById('proxyUrl').value = getProxy(); }
+    if (name === 'settings') {
+      document.getElementById('proxyUrl').value = getProxy();
+      document.getElementById('syncKey').value = load('syncKey', '');
+      document.getElementById('syncStatus').innerHTML = load('syncKey', '') ? '<span style="color:var(--success-text)"><i class="bi bi-check-circle"></i> Sync active</span>' : '';
+    }
     if (name === 'addFeed') { updateCategorySelect(); document.getElementById('addFeedStatus').innerHTML = ''; }
     setTimeout(() => modal.classList.add('show'), 10);
     closeSidebarMobile();
@@ -2113,10 +2217,23 @@ const NF = (() => {
   }, { passive: true });
 
   // ── Boot ──
-  function init() {
+  // Push sync après chaque modification (debounced)
+  let syncTimer = null;
+  function schedulePushSync() {
+    if (!load('syncKey', '')) return;
+    if (syncTimer) clearTimeout(syncTimer);
+    syncTimer = setTimeout(() => pushSync(), 3000);
+  }
+
+  async function init() {
     loadState();
     initDefaults();
     updateSortIcon();
+    // Pull sync au démarrage
+    if (load('syncKey', '')) {
+      const pulled = await pullSync();
+      if (pulled) { renderSidebar(); renderArticles(); }
+    }
     renderSidebar();
     renderArticles();
     refreshAll();
@@ -2131,7 +2248,7 @@ const NF = (() => {
     onSearch, toggleReadFilter, markAllRead, toggleSort,
     addFeed, exportOpml, removeFeed,
     openModal, closeModal, toggleSidebar, toggleTheme,
-    refreshAll, saveProxy, addFeedTab,
+    refreshAll, saveProxy, saveAndSync, addFeedTab,
     discoverFeeds, toggleDiscoverGroup, addDiscoveredFeeds,
     toggleFeedMenu, toggleFeedStar, toggleFeedEnabled,
     openEditFeed, saveEditFeed
