@@ -1,0 +1,2119 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-status-bar-style" content="default">
+  <meta name="apple-mobile-web-app-title" content="NewsFeed">
+  <meta name="theme-color" content="#2f64ff">
+  <meta name="description" content="Agrégateur RSS de veille personnalisée">
+  <title>NewsFeed — Veille personnalisée</title>
+  <link rel="icon" type="image/svg+xml" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'><defs><linearGradient id='g' x1='0' y1='0' x2='1' y2='1'><stop offset='0%25' stop-color='%232f64ff'/><stop offset='100%25' stop-color='%237c3aed'/></linearGradient></defs><rect width='32' height='32' rx='8' fill='url(%23g)'/><circle cx='9' cy='23' r='3' fill='white'/><path d='M9 14a9 9 0 0 1 9 9' stroke='white' stroke-width='3' fill='none' stroke-linecap='round'/><path d='M9 7a16 16 0 0 1 16 16' stroke='white' stroke-width='3' fill='none' stroke-linecap='round'/></svg>">
+  <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css" rel="stylesheet">
+  <link href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.min.css" rel="stylesheet">
+  <link href="https://fonts.googleapis.com/css2?family=Manrope:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+  <style>
+    /* ── DS4 Tokens ── */
+    :root {
+      --bg: #f3f5f9;
+      --panel: #ffffff;
+      --line: #dfe5ee;
+      --text: #111827;
+      --muted: #667085;
+      --primary: #2f64ff;
+      --primary-dark: #1f4ed6;
+      --primary-soft: #eef4ff;
+      --success-bg: #d8f3e3; --success-text: #16794c;
+      --warn-bg: #ffe6d3;   --warn-text: #a85410;
+      --danger-bg: #ffe1e1; --danger-text: #b42318;
+      --info-bg: #dbeafe;   --info-text: #1d4ed8;
+      --shadow: 0 18px 40px rgba(15,23,42,.07);
+      --shadow-hover: 0 8px 24px rgba(15,23,42,.12);
+      --transition-fast: .12s ease;
+      --transition-base: .18s ease;
+      --cat-a: #4f46e5; --cat-a-light: #eef2ff; --cat-a-border: #c7d2fe;
+      --cat-b: #0891b2; --cat-b-light: #ecfeff; --cat-b-border: #a5f3fc;
+      --cat-c: #059669; --cat-c-light: #ecfdf5; --cat-c-border: #a7f3d0;
+      --cat-d: #d97706; --cat-d-light: #fffbeb; --cat-d-border: #fde68a;
+      --cat-e: #dc2626; --cat-e-light: #fef2f2; --cat-e-border: #fecaca;
+      --cat-f: #7c3aed; --cat-f-light: #f5f3ff; --cat-f-border: #ddd6fe;
+    }
+
+    [data-theme="dark"] {
+      --bg: #0f1117; --panel: #1a1d27; --line: #2d3348;
+      --text: #e5e7eb; --muted: #9ca3af;
+      --primary-soft: #1e2a4a;
+      --shadow: 0 18px 40px rgba(0,0,0,.3);
+    }
+
+    * { box-sizing: border-box; }
+    body {
+      font-family: "Manrope", "Segoe UI", sans-serif;
+      background: var(--bg); color: var(--text);
+      margin: 0; font-size: 14px; line-height: 1.5;
+      overflow-x: hidden;
+    }
+
+    /* ── Layout ── */
+    .nf-sidebar {
+      position: fixed; left: 0; top: 0; bottom: 0; width: 280px;
+      background: var(--panel); border-right: 1px solid var(--line);
+      display: flex; flex-direction: column; z-index: 100;
+      transition: transform var(--transition-base);
+      overflow-y: auto;
+    }
+    .nf-main {
+      margin-left: 280px; min-height: 100vh;
+      transition: margin-left var(--transition-base);
+    }
+
+    /* ── Sidebar ── */
+    .nf-sidebar-header {
+      padding: 20px 16px 12px; border-bottom: 1px solid var(--line);
+      display: flex; align-items: center; gap: 10px;
+    }
+    .nf-sidebar-header h1 {
+      font-size: 18px; font-weight: 800; margin: 0;
+      background: linear-gradient(135deg, var(--primary), #7c3aed);
+      -webkit-background-clip: text; -webkit-text-fill-color: transparent;
+    }
+    .nf-sidebar-header .nf-logo {
+      font-size: 22px; color: var(--primary);
+    }
+
+    .nf-nav-section { padding: 12px 8px 4px; }
+    .nf-nav-section-title {
+      font-size: 11px; font-weight: 700; text-transform: uppercase;
+      color: var(--muted); padding: 0 8px 6px; letter-spacing: .5px;
+    }
+
+    .nf-nav-item {
+      display: flex; align-items: center; gap: 10px;
+      padding: 8px 12px; border-radius: 8px; cursor: pointer;
+      color: var(--text); text-decoration: none; font-weight: 500;
+      transition: background var(--transition-fast);
+      font-size: 13px; position: relative;
+    }
+    .nf-nav-item:hover { background: var(--primary-soft); color: var(--primary); }
+    .nf-nav-item.active { background: var(--primary-soft); color: var(--primary); font-weight: 700; }
+    .nf-nav-item i { font-size: 16px; width: 20px; text-align: center; flex-shrink: 0; }
+    .nf-nav-badge {
+      margin-left: auto; font-size: 11px; font-weight: 700;
+      color: var(--muted); min-width: 20px; text-align: right;
+    }
+
+    .nf-category-toggle {
+      display: flex; align-items: center; gap: 8px;
+      padding: 8px 12px; border-radius: 8px; cursor: pointer;
+      font-weight: 600; font-size: 13px; color: var(--text);
+      transition: background var(--transition-fast);
+    }
+    .nf-category-toggle:hover { background: var(--primary-soft); }
+    .nf-category-toggle .nf-chevron {
+      transition: transform var(--transition-fast); font-size: 12px;
+    }
+    .nf-category-toggle.collapsed .nf-chevron { transform: rotate(-90deg); }
+    .nf-category-color {
+      width: 10px; height: 10px; border-radius: 3px; flex-shrink: 0;
+    }
+
+    .nf-feed-item {
+      display: flex; align-items: center; gap: 8px;
+      padding: 6px 12px 6px 36px; border-radius: 6px; cursor: pointer;
+      font-size: 12px; color: var(--muted); transition: all var(--transition-fast);
+    }
+    .nf-feed-item:hover { background: var(--primary-soft); color: var(--text); }
+    .nf-feed-item.active { color: var(--primary); font-weight: 600; }
+    .nf-feed-icon {
+      width: 16px; height: 16px; border-radius: 4px; flex-shrink: 0;
+      background: var(--line); display: flex; align-items: center;
+      justify-content: center; font-size: 9px; font-weight: 700; color: var(--muted);
+      overflow: hidden;
+    }
+    .nf-feed-icon img { width: 100%; height: 100%; object-fit: cover; }
+    .nf-feed-status {
+      width: 6px; height: 6px; border-radius: 50%; margin-left: auto; flex-shrink: 0;
+    }
+    .nf-feed-status.ok { background: var(--success-text); }
+    .nf-feed-status.error { background: var(--danger-text); }
+
+    .nf-sidebar-footer {
+      margin-top: auto; padding: 12px 8px; border-top: 1px solid var(--line);
+    }
+    .nf-sidebar-footer .nf-nav-item { font-size: 12px; }
+
+    /* ── Toolbar ── */
+    .nf-toolbar {
+      position: sticky; top: 0; z-index: 50;
+      background: var(--panel); border-bottom: 1px solid var(--line);
+      padding: 12px 24px; display: flex; align-items: center; gap: 12px;
+    }
+    .nf-toolbar-title { font-weight: 700; font-size: 16px; }
+    .nf-toolbar-count { font-size: 12px; color: var(--muted); }
+    .nf-search-box {
+      position: relative; margin-left: auto; max-width: 300px; flex: 1;
+    }
+    .nf-search-box input {
+      width: 100%; padding: 7px 12px 7px 34px; border: 1px solid var(--line);
+      border-radius: 8px; background: var(--bg); font-size: 13px;
+      font-family: inherit; color: var(--text); outline: none;
+      transition: border-color var(--transition-fast);
+    }
+    .nf-search-box input:focus { border-color: var(--primary); }
+    .nf-search-box i {
+      position: absolute; left: 10px; top: 50%; transform: translateY(-50%);
+      color: var(--muted); font-size: 14px;
+    }
+    .nf-btn-icon {
+      background: none; border: 1px solid var(--line); border-radius: 8px;
+      width: 36px; height: 36px; display: flex; align-items: center;
+      justify-content: center; cursor: pointer; color: var(--muted);
+      transition: all var(--transition-fast); font-size: 16px;
+    }
+    .nf-btn-icon:hover { background: var(--primary-soft); color: var(--primary); border-color: var(--primary); }
+    .nf-toolbar-refresh {
+      font-size: 11px; color: var(--muted); white-space: nowrap;
+    }
+    .nf-menu-toggle { display: none; }
+
+    /* Swipe mobile */
+    .nf-article { touch-action: pan-y; position: relative; overflow: hidden; }
+    .nf-swipe-hint {
+      position: absolute; top: 0; bottom: 0; width: 80px;
+      display: flex; align-items: center; justify-content: center;
+      font-size: 20px; color: #fff; opacity: 0; transition: opacity .15s;
+    }
+    .nf-swipe-hint.left { left: 0; background: var(--success-text); }
+    .nf-swipe-hint.right { right: 0; background: var(--primary); }
+
+    /* ── Articles ── */
+    .nf-articles { padding: 20px 24px; max-width: 900px; }
+
+    .nf-article {
+      background: var(--panel); border: 1px solid var(--line);
+      border-radius: 12px; padding: 16px 20px; margin-bottom: 12px;
+      cursor: pointer; transition: all var(--transition-fast);
+      position: relative;
+    }
+    .nf-article:hover { box-shadow: var(--shadow-hover); border-color: var(--primary); transform: translateY(-1px); }
+    .nf-article.read { opacity: .55; }
+    .nf-article-meta {
+      display: flex; align-items: center; gap: 8px; margin-bottom: 6px;
+      font-size: 11px; color: var(--muted); flex-wrap: wrap;
+    }
+    .nf-article-source {
+      font-weight: 700; color: var(--primary);
+      background: var(--primary-soft); padding: 2px 8px; border-radius: 4px;
+    }
+    .nf-article-category {
+      padding: 2px 8px; border-radius: 4px; font-weight: 600;
+    }
+    .nf-article-title {
+      font-size: 15px; font-weight: 700; line-height: 1.4;
+      margin-bottom: 6px; color: var(--text);
+    }
+    .nf-article-title a { color: inherit; text-decoration: none; }
+    .nf-article-title a:hover { color: var(--primary); }
+    .nf-article-snippet {
+      font-size: 13px; color: var(--muted); line-height: 1.5;
+      display: -webkit-box; -webkit-line-clamp: 2;
+      -webkit-box-orient: vertical; overflow: hidden;
+    }
+    .nf-article-thumb {
+      width: 120px; height: 80px; border-radius: 8px; object-fit: cover;
+      flex-shrink: 0; background: var(--line);
+    }
+    .nf-article-thumb-placeholder {
+      width: 120px; height: 80px; border-radius: 8px; flex-shrink: 0;
+      display: flex; align-items: center; justify-content: center;
+      font-size: 28px; font-weight: 800; color: #fff;
+    }
+    .nf-article-body { display: flex; gap: 16px; align-items: flex-start; }
+    .nf-article-content { flex: 1; min-width: 0; }
+
+    /* Doublons groupés */
+    .nf-duplicates {
+      margin-top: 8px; padding-top: 8px; border-top: 1px dashed var(--line);
+      font-size: 12px; color: var(--muted);
+    }
+    .nf-duplicates summary {
+      cursor: pointer; font-weight: 600; color: var(--primary);
+      list-style: none; display: flex; align-items: center; gap: 4px;
+    }
+    .nf-duplicates summary::-webkit-details-marker { display: none; }
+    .nf-dup-item {
+      padding: 4px 0; display: flex; align-items: center; gap: 6px;
+    }
+    .nf-dup-item a { color: var(--muted); text-decoration: none; }
+    .nf-dup-item a:hover { color: var(--primary); }
+
+    /* Actions article */
+    .nf-article-actions {
+      display: flex; gap: 6px; margin-top: 8px;
+    }
+    .nf-article-actions button {
+      background: none; border: none; color: var(--muted); cursor: pointer;
+      font-size: 14px; padding: 4px; border-radius: 4px;
+      transition: color var(--transition-fast);
+    }
+    .nf-article-actions button:hover { color: var(--primary); }
+    .nf-article-actions button.bookmarked { color: var(--warn-text); }
+
+    /* ── Empty state ── */
+    .nf-empty {
+      text-align: center; padding: 80px 24px; color: var(--muted);
+    }
+    .nf-empty i { font-size: 48px; margin-bottom: 16px; display: block; color: var(--line); }
+    .nf-empty h3 { font-size: 18px; font-weight: 700; color: var(--text); margin-bottom: 8px; }
+    .nf-empty p { font-size: 14px; max-width: 400px; margin: 0 auto 20px; }
+
+    /* ── Loader ── */
+    .nf-loader {
+      display: flex; align-items: center; justify-content: center;
+      padding: 40px; gap: 8px; color: var(--muted);
+    }
+    .nf-spinner {
+      width: 20px; height: 20px; border: 2px solid var(--line);
+      border-top-color: var(--primary); border-radius: 50%;
+      animation: nf-spin .6s linear infinite;
+    }
+    @keyframes nf-spin { to { transform: rotate(360deg); } }
+
+    /* ── Modal ── */
+    .nf-modal-overlay {
+      position: fixed; inset: 0; background: rgba(0,0,0,.4);
+      z-index: 200; display: flex; align-items: center; justify-content: center;
+      padding: 20px; opacity: 0; pointer-events: none;
+      transition: opacity var(--transition-base);
+    }
+    .nf-modal-overlay.show { opacity: 1; pointer-events: auto; }
+    .nf-modal {
+      background: var(--panel); border-radius: 16px; width: 100%;
+      max-width: 560px; max-height: 85vh; overflow-y: auto;
+      box-shadow: var(--shadow); transform: translateY(20px);
+      transition: transform var(--transition-base);
+    }
+    .nf-modal-overlay.show .nf-modal { transform: translateY(0); }
+    .nf-modal-header {
+      padding: 20px 24px 12px; display: flex; align-items: center; gap: 12px;
+      border-bottom: 1px solid var(--line);
+    }
+    .nf-modal-header h2 { font-size: 16px; font-weight: 700; margin: 0; flex: 1; }
+    .nf-modal-close {
+      background: none; border: none; font-size: 20px; cursor: pointer;
+      color: var(--muted); padding: 4px; border-radius: 6px;
+    }
+    .nf-modal-close:hover { background: var(--danger-bg); color: var(--danger-text); }
+    .nf-modal-body { padding: 20px 24px; }
+    .nf-modal-footer {
+      padding: 12px 24px 20px; display: flex; gap: 8px; justify-content: flex-end;
+    }
+
+    /* ── Form elements ── */
+    .nf-input, .nf-select {
+      width: 100%; padding: 9px 12px; border: 1px solid var(--line);
+      border-radius: 8px; font-family: inherit; font-size: 13px;
+      background: var(--bg); color: var(--text); outline: none;
+      transition: border-color var(--transition-fast);
+    }
+    .nf-input:focus, .nf-select:focus { border-color: var(--primary); }
+    .nf-label { display: block; font-size: 12px; font-weight: 600; margin-bottom: 6px; }
+    .nf-field { margin-bottom: 16px; }
+
+    .nf-btn {
+      padding: 9px 18px; border-radius: 8px; font-family: inherit;
+      font-size: 13px; font-weight: 600; cursor: pointer; border: none;
+      transition: all var(--transition-fast); display: inline-flex;
+      align-items: center; gap: 6px;
+    }
+    .nf-btn-primary { background: var(--primary); color: #fff; }
+    .nf-btn-primary:hover { background: var(--primary-dark); }
+    .nf-btn-ghost { background: none; color: var(--muted); border: 1px solid var(--line); }
+    .nf-btn-ghost:hover { background: var(--primary-soft); color: var(--primary); }
+    .nf-btn-danger { background: var(--danger-bg); color: var(--danger-text); }
+    .nf-btn-danger:hover { background: var(--danger-text); color: #fff; }
+    .nf-btn-sm { padding: 6px 12px; font-size: 12px; }
+
+    /* ── Toast ── */
+    .nf-toast-container {
+      position: fixed; bottom: 20px; right: 20px; z-index: 300;
+      display: flex; flex-direction: column-reverse; gap: 8px;
+    }
+    .nf-toast {
+      background: var(--panel); border: 1px solid var(--line);
+      border-radius: 10px; padding: 12px 16px; font-size: 13px;
+      box-shadow: var(--shadow); display: flex; align-items: center; gap: 10px;
+      animation: nf-toast-in .3s ease;
+    }
+    .nf-toast.success { border-left: 3px solid var(--success-text); }
+    .nf-toast.error { border-left: 3px solid var(--danger-text); }
+    .nf-toast.info { border-left: 3px solid var(--info-text); }
+    @keyframes nf-toast-in { from { opacity: 0; transform: translateY(10px); } }
+
+    /* ── Responsive ── */
+    @media (max-width: 768px) {
+      .nf-sidebar { transform: translateX(-100%); width: 280px; }
+      .nf-sidebar.open { transform: translateX(0); box-shadow: var(--shadow); }
+      .nf-main { margin-left: 0; }
+      .nf-menu-toggle { display: flex; }
+      .nf-toolbar { padding: 10px 12px; gap: 6px; }
+      .nf-toolbar-refresh { display: none; }
+      .nf-articles { padding: 12px 12px; }
+      .nf-article { padding: 14px 16px; }
+      .nf-article-thumb { width: 80px; height: 60px; }
+      .nf-article-thumb-placeholder { width: 80px; height: 60px; font-size: 20px; }
+      .nf-search-box { max-width: 140px; }
+      .nf-sidebar-backdrop {
+        position: fixed; inset: 0; background: rgba(0,0,0,.3);
+        z-index: 99; display: none;
+      }
+      .nf-sidebar.open ~ .nf-sidebar-backdrop { display: block; }
+    }
+
+    @media (max-width: 480px) {
+      .nf-article-body { flex-direction: column; }
+      .nf-article-thumb { width: 100%; height: 140px; order: -1; }
+      .nf-search-box { max-width: 140px; }
+    }
+
+    /* ── Scrollbar ── */
+    ::-webkit-scrollbar { width: 6px; }
+    ::-webkit-scrollbar-track { background: transparent; }
+    ::-webkit-scrollbar-thumb { background: var(--line); border-radius: 3px; }
+    ::-webkit-scrollbar-thumb:hover { background: var(--muted); }
+
+    /* ── Skeleton ── */
+    .nf-skeleton {
+      background: linear-gradient(90deg, var(--line) 25%, var(--bg) 50%, var(--line) 75%);
+      background-size: 200% 100%; animation: nf-shimmer 1.5s infinite;
+      border-radius: 6px;
+    }
+    @keyframes nf-shimmer { 0% { background-position: 200% 0; } 100% { background-position: -200% 0; } }
+
+    /* ── Feed context menu ── */
+    .nf-feed-item { position: relative; }
+    .nf-feed-item.disabled { opacity: .4; }
+    .nf-feed-item .nf-feed-star {
+      font-size: 11px; color: var(--line); cursor: pointer; flex-shrink: 0;
+      transition: color var(--transition-fast);
+    }
+    .nf-feed-item .nf-feed-star.starred { color: #f59e0b; }
+    .nf-feed-item .nf-feed-star:hover { color: #f59e0b; }
+    .nf-feed-actions-btn {
+      opacity: 0; background: none; border: none; color: var(--muted);
+      cursor: pointer; font-size: 13px; padding: 2px; border-radius: 4px;
+      flex-shrink: 0; transition: opacity var(--transition-fast);
+    }
+    .nf-feed-item:hover .nf-feed-actions-btn { opacity: 1; }
+    .nf-feed-actions-btn:hover { color: var(--primary); background: var(--primary-soft); }
+
+    .nf-ctx-menu {
+      position: absolute; right: 8px; top: 100%; z-index: 150;
+      background: var(--panel); border: 1px solid var(--line);
+      border-radius: 10px; box-shadow: var(--shadow); min-width: 180px;
+      padding: 6px 0; display: none;
+    }
+    .nf-ctx-menu.show { display: block; }
+    .nf-ctx-item {
+      display: flex; align-items: center; gap: 8px;
+      padding: 7px 14px; font-size: 12px; cursor: pointer;
+      color: var(--text); transition: background var(--transition-fast);
+    }
+    .nf-ctx-item:hover { background: var(--primary-soft); color: var(--primary); }
+    .nf-ctx-item i { width: 16px; text-align: center; font-size: 13px; }
+    .nf-ctx-item.danger { color: var(--danger-text); }
+    .nf-ctx-item.danger:hover { background: var(--danger-bg); }
+    .nf-ctx-sep { height: 1px; background: var(--line); margin: 4px 0; }
+
+    /* ── Tabs ── */
+    .nf-tabs { display: flex; gap: 2px; margin-bottom: 16px; }
+    .nf-tab {
+      padding: 8px 14px; border-radius: 8px; font-size: 13px; font-weight: 600;
+      cursor: pointer; color: var(--muted); background: none; border: none;
+      font-family: inherit; transition: all var(--transition-fast);
+    }
+    .nf-tab.active { background: var(--primary-soft); color: var(--primary); }
+    .nf-tab:hover:not(.active) { background: var(--bg); }
+  </style>
+</head>
+<body>
+
+<!-- ═══ SIDEBAR ═══ -->
+<aside class="nf-sidebar" id="sidebar">
+  <div class="nf-sidebar-header">
+    <i class="bi bi-rss nf-logo"></i>
+    <h1>NewsFeed</h1>
+  </div>
+
+  <div class="nf-nav-section">
+    <div class="nf-nav-item active" data-view="all" onclick="NF.setView('all')">
+      <i class="bi bi-newspaper"></i>
+      <span>Tous les articles</span>
+      <span class="nf-nav-badge" id="countAll">—</span>
+    </div>
+    <div class="nf-nav-item" data-view="bookmarks" onclick="NF.setView('bookmarks')">
+      <i class="bi bi-bookmark"></i>
+      <span>Favoris</span>
+      <span class="nf-nav-badge" id="countBookmarks">—</span>
+    </div>
+  </div>
+
+  <div class="nf-nav-section">
+    <div class="nf-nav-section-title">Thèmes</div>
+    <div id="categoryList"></div>
+  </div>
+
+  <div class="nf-sidebar-footer">
+    <div class="nf-nav-item" onclick="NF.openModal('addFeed')">
+      <i class="bi bi-plus-circle"></i><span>Ajouter une source</span>
+    </div>
+    <div class="nf-nav-item" onclick="NF.exportOpml()">
+      <i class="bi bi-download"></i><span>Exporter mes sources</span>
+    </div>
+    <div class="nf-nav-item" onclick="NF.openModal('settings')">
+      <i class="bi bi-gear"></i><span>Paramètres</span>
+    </div>
+  </div>
+</aside>
+
+<div class="nf-sidebar-backdrop" id="sidebarBackdrop" onclick="NF.toggleSidebar()"></div>
+
+<!-- ═══ MAIN ═══ -->
+<div class="nf-main">
+  <!-- Toolbar -->
+  <div class="nf-toolbar">
+    <button class="nf-btn-icon nf-menu-toggle" onclick="NF.toggleSidebar()">
+      <i class="bi bi-list"></i>
+    </button>
+    <span class="nf-toolbar-title" id="viewTitle">Tous les articles</span>
+    <span class="nf-toolbar-count" id="viewCount"></span>
+    <span class="nf-toolbar-refresh" id="lastRefresh" title="Dernier rafraîchissement"></span>
+    <div class="nf-search-box">
+      <i class="bi bi-search"></i>
+      <input type="text" placeholder="Rechercher..." id="searchInput" oninput="NF.onSearch()">
+    </div>
+    <button class="nf-btn-icon" id="sortBtn" onclick="NF.toggleSort()" title="Tri">
+      <i class="bi bi-sort-down" id="sortIcon"></i>
+    </button>
+    <button class="nf-btn-icon" id="filterReadBtn" onclick="NF.toggleReadFilter()" title="Filtrer lus/non lus">
+      <i class="bi bi-eye" id="filterReadIcon"></i>
+    </button>
+    <button class="nf-btn-icon" onclick="NF.markAllRead()" title="Tout marquer comme lu">
+      <i class="bi bi-check2-all"></i>
+    </button>
+    <button class="nf-btn-icon" onclick="NF.refreshAll()" title="Rafraîchir">
+      <i class="bi bi-arrow-clockwise"></i>
+    </button>
+    <button class="nf-btn-icon" onclick="NF.toggleTheme()" title="Thème">
+      <i class="bi bi-moon" id="themeIcon"></i>
+    </button>
+  </div>
+
+  <!-- Articles -->
+  <div class="nf-articles" id="articleList"></div>
+</div>
+
+<!-- ═══ MODALS ═══ -->
+
+<!-- Add Feed -->
+<div class="nf-modal-overlay" id="modalAddFeed">
+  <div class="nf-modal">
+    <div class="nf-modal-header">
+      <i class="bi bi-plus-circle" style="color:var(--primary);font-size:18px"></i>
+      <h2>Ajouter des sources</h2>
+      <button class="nf-modal-close" onclick="NF.closeModal('addFeed')">&times;</button>
+    </div>
+    <div class="nf-modal-body">
+      <div class="nf-tabs" style="margin-bottom:16px">
+        <button class="nf-tab active" onclick="NF.addFeedTab(this,'tabAddDirect')">URL directe</button>
+        <button class="nf-tab" onclick="NF.addFeedTab(this,'tabAddDiscover')">Découvrir les flux</button>
+      </div>
+
+      <!-- Onglet URL directe -->
+      <div id="tabAddDirect">
+        <div class="nf-field">
+          <label class="nf-label">URL du site ou du flux RSS</label>
+          <input class="nf-input" id="addFeedUrl" placeholder="https://exemple.com ou https://exemple.com/feed">
+        </div>
+        <div class="nf-field">
+          <label class="nf-label">Thème</label>
+          <select class="nf-select" id="addFeedCategory">
+            <option value="">— Sans thème —</option>
+          </select>
+          <div style="margin-top:8px;display:flex;gap:8px">
+            <input class="nf-input" id="addFeedNewCategory" placeholder="Ou créer un nouveau thème..." style="flex:1">
+          </div>
+        </div>
+        <div id="addFeedStatus" style="margin-top:8px;font-size:12px"></div>
+        <div style="margin-top:12px;text-align:right">
+          <button class="nf-btn nf-btn-primary" onclick="NF.addFeed()"><i class="bi bi-plus"></i> Ajouter</button>
+        </div>
+      </div>
+
+      <!-- Onglet Découvrir -->
+      <div id="tabAddDiscover" style="display:none">
+        <div class="nf-field">
+          <label class="nf-label">URL de la page des flux RSS d'un site</label>
+          <input class="nf-input" id="discoverUrl" placeholder="https://www.mac4ever.com/flux">
+          <p style="font-size:11px;color:var(--muted);margin-top:4px">
+            Collez l'URL de la page listant les flux RSS d'un site (ex: mac4ever.com/flux)
+          </p>
+        </div>
+        <div class="nf-field">
+          <label class="nf-label">Thème dans lequel classer ces sources</label>
+          <select class="nf-select" id="discoverCategory">
+            <option value="">— Sans thème —</option>
+          </select>
+          <div style="margin-top:8px;display:flex;gap:8px">
+            <input class="nf-input" id="discoverNewCategory" placeholder="Ou créer un nouveau thème..." style="flex:1">
+          </div>
+        </div>
+        <div style="margin-top:8px">
+          <button class="nf-btn nf-btn-primary nf-btn-sm" onclick="NF.discoverFeeds()"><i class="bi bi-search"></i> Scanner la page</button>
+        </div>
+        <div id="discoverStatus" style="margin-top:8px;font-size:12px"></div>
+        <div id="discoverResults" style="margin-top:12px"></div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- Edit Feed -->
+<div class="nf-modal-overlay" id="modalEditFeed">
+  <div class="nf-modal">
+    <div class="nf-modal-header">
+      <i class="bi bi-pencil" style="color:var(--primary);font-size:18px"></i>
+      <h2>Modifier la source</h2>
+      <button class="nf-modal-close" onclick="NF.closeModal('editFeed')">&times;</button>
+    </div>
+    <div class="nf-modal-body">
+      <input type="hidden" id="editFeedId">
+      <div class="nf-field">
+        <label class="nf-label">Nom</label>
+        <input class="nf-input" id="editFeedTitle">
+      </div>
+      <div class="nf-field">
+        <label class="nf-label">URL du flux RSS</label>
+        <input class="nf-input" id="editFeedUrl">
+      </div>
+      <div class="nf-field">
+        <label class="nf-label">Thème</label>
+        <select class="nf-select" id="editFeedCategory"></select>
+        <div style="margin-top:8px">
+          <input class="nf-input" id="editFeedNewCategory" placeholder="Ou créer un nouveau thème...">
+        </div>
+      </div>
+    </div>
+    <div class="nf-modal-footer">
+      <button class="nf-btn nf-btn-ghost" onclick="NF.closeModal('editFeed')">Annuler</button>
+      <button class="nf-btn nf-btn-primary" onclick="NF.saveEditFeed()"><i class="bi bi-check2"></i> Enregistrer</button>
+    </div>
+  </div>
+</div>
+
+
+<!-- Settings -->
+<div class="nf-modal-overlay" id="modalSettings">
+  <div class="nf-modal">
+    <div class="nf-modal-header">
+      <i class="bi bi-gear" style="color:var(--primary);font-size:18px"></i>
+      <h2>Paramètres</h2>
+      <button class="nf-modal-close" onclick="NF.closeModal('settings')">&times;</button>
+    </div>
+    <div class="nf-modal-body">
+      <div class="nf-field">
+        <label class="nf-label">URL du proxy CORS</label>
+        <input class="nf-input" id="proxyUrl" placeholder="https://api.codetabs.com/v1/proxy?quest=">
+        <p style="font-size:11px;color:var(--muted);margin-top:6px">
+          Nécessaire pour récupérer les flux RSS depuis le navigateur.
+          Par défaut : <code>https://api.codetabs.com/v1/proxy?quest=</code> (avec fallback automatique)
+        </p>
+      </div>
+      <button class="nf-btn nf-btn-primary nf-btn-sm" onclick="NF.saveProxy()">Enregistrer</button>
+    </div>
+  </div>
+</div>
+
+<!-- Toasts -->
+<div class="nf-toast-container" id="toastContainer"></div>
+
+<!-- ═══ JAVASCRIPT ═══ -->
+<script>
+const NF = (() => {
+  // ── State ──
+  const STORAGE_KEYS = {
+    feeds: 'nf_feeds',
+    categories: 'nf_categories',
+    readArticles: 'nf_read',
+    bookmarks: 'nf_bookmarks',
+    articles: 'nf_articles',
+    proxy: 'nf_proxy',
+    theme: 'nf_theme',
+    sortMode: 'nf_sort'
+  };
+
+  const CORS_PROXIES = [
+    { name: 'codetabs', url: 'https://api.codetabs.com/v1/proxy?quest=' },
+    { name: 'allorigins', url: 'https://api.allorigins.win/raw?url=' },
+    { name: 'corsproxy', url: 'https://api.cors.lol/?url=' },
+  ];
+  const DEFAULT_PROXY = CORS_PROXIES[0].url;
+  const CATEGORY_COLORS = ['cat-a','cat-b','cat-c','cat-d','cat-e','cat-f'];
+
+  let state = {
+    feeds: [],         // { id, url, title, category, siteUrl, status, starred, enabled }
+    categories: [],    // { id, name, colorClass, collapsed }
+    articles: [],      // fetched articles (persisted in localStorage)
+    readArticles: new Set(),
+    bookmarks: new Set(),
+    currentView: 'all',       // 'all', 'bookmarks', 'category:xxx', 'feed:xxx'
+    searchQuery: '',
+    readFilter: 'all',  // 'all', 'unread', 'read'
+    sortMode: 'date',   // 'date', 'source', 'unread'
+    loading: false
+  };
+
+  // ── Persistence ──
+  function save(key, data) {
+    try {
+      localStorage.setItem(STORAGE_KEYS[key], JSON.stringify(
+        data instanceof Set ? [...data] : data
+      ));
+    } catch (e) { console.warn('Storage error:', e); }
+  }
+
+  function load(key, fallback) {
+    try {
+      const raw = localStorage.getItem(STORAGE_KEYS[key]);
+      return raw ? JSON.parse(raw) : fallback;
+    } catch { return fallback; }
+  }
+
+  function loadState() {
+    state.feeds = load('feeds', []);
+    state.categories = load('categories', []);
+    state.readArticles = new Set(load('readArticles', []));
+    state.bookmarks = new Set(load('bookmarks', []));
+    state.sortMode = load('sortMode', 'date');
+    // Charger les articles persistés (restaurer les dates)
+    const cached = load('articles', []);
+    state.articles = cached.map(a => ({ ...a, date: a.date ? new Date(a.date) : null }));
+    const theme = load('theme', 'light');
+    document.documentElement.setAttribute('data-theme', theme);
+    updateThemeIcon();
+  }
+
+  function getProxy() {
+    return load('proxy', null) || DEFAULT_PROXY;
+  }
+
+  // ── Migration URLs connues ──
+  const URL_MIGRATIONS = {
+    'http://www.mac4ever.com/syndication/news.rss': 'https://www.mac4ever.com/flux/rss/content/all',
+    'https://www.mac4ever.com/syndication/news.rss': 'https://www.mac4ever.com/flux/rss/content/all',
+  };
+
+  function migrateFeeds() {
+    let changed = false;
+    state.feeds.forEach(f => {
+      if (URL_MIGRATIONS[f.url]) {
+        f.url = URL_MIGRATIONS[f.url];
+        changed = true;
+      }
+    });
+    if (changed) save('feeds', state.feeds);
+  }
+
+  // ── Init avec sources par défaut ──
+  function initDefaults() {
+    migrateFeeds();
+    if (state.feeds.length > 0) return;
+
+    const defaultFeeds = [
+      { url: 'https://www.presse-citron.net/feed', title: 'Presse-citron', category: 'Technologie', siteUrl: 'https://www.presse-citron.net' },
+      { url: 'https://www.mac4ever.com/flux/rss/content/all', title: 'Mac4Ever', category: 'Technologie', siteUrl: 'https://www.mac4ever.com' },
+      { url: 'https://www.lemondeinformatique.fr/flux-rss/rss.xml', title: 'Le Monde Informatique', category: 'Technologie', siteUrl: 'https://www.lemondeinformatique.fr' },
+      { url: 'https://www.zdnet.fr/feeds/rss/actualites/?l=20', title: 'ZDNet', category: 'Technologie', siteUrl: 'https://www.zdnet.fr' },
+    ];
+
+    state.categories = [{ id: genId(), name: 'Technologie', colorClass: 'cat-a', collapsed: false }];
+    state.feeds = defaultFeeds.map(f => ({
+      id: genId(),
+      url: f.url,
+      title: f.title,
+      category: 'Technologie',
+      siteUrl: f.siteUrl,
+      status: 'unknown',
+      starred: false,
+      enabled: true
+    }));
+
+    save('feeds', state.feeds);
+    save('categories', state.categories);
+  }
+
+  // ── Utils ──
+  function genId() { return 'nf_' + Date.now().toString(36) + '_' + Math.random().toString(36).slice(2, 7); }
+
+  function timeAgo(date) {
+    const diff = (Date.now() - date.getTime()) / 1000;
+    if (diff < 60) return "à l'instant";
+    if (diff < 3600) return Math.floor(diff / 60) + ' min';
+    if (diff < 86400) return Math.floor(diff / 3600) + ' h';
+    if (diff < 604800) return Math.floor(diff / 86400) + ' j';
+    return date.toLocaleDateString('fr-FR', { day: 'numeric', month: 'short' });
+  }
+
+  function stripHtml(html) {
+    const tmp = document.createElement('div');
+    tmp.innerHTML = html || '';
+    return tmp.textContent.trim();
+  }
+
+  function normalizeUrl(url) {
+    try {
+      const u = new URL(url);
+      u.searchParams.delete('utm_source');
+      u.searchParams.delete('utm_medium');
+      u.searchParams.delete('utm_campaign');
+      u.searchParams.delete('utm_content');
+      u.searchParams.delete('utm_term');
+      u.searchParams.delete('xtor');
+      return u.href.replace(/\/+$/, '');
+    } catch { return url; }
+  }
+
+  function getCategoryColor(name) {
+    const cat = state.categories.find(c => c.name === name);
+    if (cat) return cat.colorClass;
+    return CATEGORY_COLORS[state.categories.length % CATEGORY_COLORS.length];
+  }
+
+  function getCssVar(colorClass) {
+    return { bg: `var(--${colorClass}-light)`, text: `var(--${colorClass})`, border: `var(--${colorClass}-border)` };
+  }
+
+  // ── Dédoublonnage ──
+  function tokenize(text) {
+    const stopWords = new Set(['le','la','les','un','une','des','de','du','en','et','est','a','à','au','aux','ce','ces','que','qui','pour','par','sur','son','sa','ses','se','ne','pas','avec','dans','plus','son','tout','tous','il','elle','on','nous','vous','ils','elles','leur','leurs','cette','cet','dont','où','quand','mais','ou','car','ni','donc','si','aussi','très','bien','même','avant','après','chez','entre','vers','sans','sous','comme','comment','être','avoir','faire','dire','aller','voir','savoir','pouvoir','vouloir','venir','falloir','devoir']);
+    return text.toLowerCase()
+      .normalize('NFD').replace(/[\u0300-\u036f]/g, '')
+      .replace(/[^a-z0-9\s]/g, ' ')
+      .split(/\s+/)
+      .filter(w => w.length > 2 && !stopWords.has(w));
+  }
+
+  function jaccardSimilarity(a, b) {
+    const setA = new Set(tokenize(a));
+    const setB = new Set(tokenize(b));
+    if (setA.size === 0 || setB.size === 0) return 0;
+    let inter = 0;
+    for (const w of setA) if (setB.has(w)) inter++;
+    return inter / (setA.size + setB.size - inter);
+  }
+
+  function deduplicateArticles(articles) {
+    const groups = [];
+    const assigned = new Set();
+
+    // Niveau 1 : URL identique
+    const urlMap = new Map();
+    articles.forEach((a, i) => {
+      const norm = normalizeUrl(a.link);
+      if (!urlMap.has(norm)) urlMap.set(norm, []);
+      urlMap.get(norm).push(i);
+    });
+
+    for (const indices of urlMap.values()) {
+      if (indices.length > 1) {
+        const group = { main: indices[0], duplicates: indices.slice(1) };
+        groups.push(group);
+        indices.forEach(i => assigned.add(i));
+      }
+    }
+
+    // Niveau 2 : similarité titre
+    const remaining = articles.map((a, i) => i).filter(i => !assigned.has(i));
+    for (let i = 0; i < remaining.length; i++) {
+      if (assigned.has(remaining[i])) continue;
+      const group = { main: remaining[i], duplicates: [] };
+
+      for (let j = i + 1; j < remaining.length; j++) {
+        if (assigned.has(remaining[j])) continue;
+        const sim = jaccardSimilarity(
+          articles[remaining[i]].title,
+          articles[remaining[j]].title
+        );
+        if (sim >= 0.55) {
+          group.duplicates.push(remaining[j]);
+          assigned.add(remaining[j]);
+        }
+      }
+
+      groups.push(group);
+      assigned.add(remaining[i]);
+    }
+
+    // Trier chaque groupe : source préférée en premier
+    return groups.map(g => {
+      const all = [g.main, ...g.duplicates];
+      // Tri par date (plus récent d'abord)
+      all.sort((a, b) => (articles[b].date?.getTime() || 0) - (articles[a].date?.getTime() || 0));
+      return { main: articles[all[0]], duplicates: all.slice(1).map(i => articles[i]) };
+    });
+  }
+
+  // ── Fetch RSS ──
+  async function fetchWithFallback(targetUrl) {
+    const customProxy = load('proxy', null);
+    const proxies = customProxy ? [{ url: customProxy }] : CORS_PROXIES;
+    let lastError;
+    for (const proxy of proxies) {
+      try {
+        const resp = await fetch(proxy.url + encodeURIComponent(targetUrl), { signal: AbortSignal.timeout(15000) });
+        if (!resp.ok) throw new Error(`HTTP ${resp.status}`);
+        const text = await resp.text();
+        if (!text || text.trim().length === 0) throw new Error('Réponse vide');
+        // Rejeter les pages d'erreur HTML (410 Gone, Access Denied, etc.)
+        const trimmed = text.trim().toLowerCase();
+        if (trimmed.startsWith('<html') || trimmed.startsWith('<!doctype')) {
+          const textLow = text.toLowerCase();
+          if (!textLow.includes('<rss') && !textLow.includes('<feed') && !textLow.includes('<item') && !textLow.includes('<entry')) {
+            throw new Error('Réponse HTML (page erreur)');
+          }
+        }
+        return text;
+      } catch (e) { lastError = e; }
+    }
+    throw lastError || new Error('Tous les proxies ont échoué');
+  }
+
+  async function fetchFeed(feed) {
+    try {
+      const text = await fetchWithFallback(feed.url);
+      const parser = new DOMParser();
+      const doc = parser.parseFromString(text, 'text/xml');
+
+      if (doc.querySelector('parsererror')) throw new Error('Parse XML error');
+
+      const articles = [];
+
+      // RSS 2.0 + RSS 1.0 (RDF)
+      let items = doc.querySelectorAll('item');
+      // Fallback pour RSS 1.0 namespacé
+      if (items.length === 0) {
+        items = doc.getElementsByTagNameNS('http://purl.org/rss/1.0/', 'item');
+      }
+      if (items.length > 0) {
+        Array.from(items).forEach(item => {
+          const titleEl = item.querySelector('title') || item.getElementsByTagNameNS('http://purl.org/rss/1.0/', 'title')[0];
+          const linkEl = item.querySelector('link') || item.getElementsByTagNameNS('http://purl.org/rss/1.0/', 'link')[0];
+          const descEl = item.querySelector('description') || item.getElementsByTagNameNS('http://purl.org/rss/1.0/', 'description')[0];
+          const title = titleEl?.textContent?.trim() || '';
+          const link = linkEl?.textContent?.trim() || '';
+          const desc = descEl?.textContent || '';
+          // RSS 2.0 : pubDate, RSS 1.0 (RDF) : dc:date
+          const pubDate = item.querySelector('pubDate')?.textContent
+            || item.getElementsByTagNameNS('http://purl.org/dc/elements/1.1/', 'date')[0]?.textContent;
+          const enclosure = item.querySelector('enclosure[type^="image"]') || item.querySelector('enclosure');
+          const mediaThumbnail = item.getElementsByTagNameNS('http://search.yahoo.com/mrss/', 'thumbnail')[0];
+          const mediaContent = item.getElementsByTagNameNS('http://search.yahoo.com/mrss/', 'content')[0];
+          const contentEncoded = item.getElementsByTagNameNS('http://purl.org/rss/1.0/modules/content/', 'encoded')[0]?.textContent || '';
+
+          let encUrl = enclosure?.getAttribute('url') || '';
+          // Vérifier que l'enclosure est bien une image
+          const encType = enclosure?.getAttribute('type') || '';
+          if (encUrl && !encType.startsWith('image') && !encUrl.match(/\.(jpe?g|png|gif|webp|svg)/i)) encUrl = '';
+
+          let thumb = encUrl
+            || mediaThumbnail?.getAttribute('url')
+            || mediaContent?.getAttribute('url')
+            || extractImgFromHtml(desc)
+            || extractImgFromHtml(contentEncoded)
+            || '';
+
+          articles.push({
+            id: genId(),
+            feedId: feed.id,
+            feedTitle: feed.title,
+            category: feed.category,
+            title,
+            link,
+            snippet: stripHtml(desc).slice(0, 300),
+            date: pubDate ? new Date(pubDate) : null,
+            thumb
+          });
+        });
+      } else {
+        // Atom
+        const entries = doc.querySelectorAll('entry');
+        entries.forEach(entry => {
+          const title = entry.querySelector('title')?.textContent?.trim() || '';
+          const linkEl = entry.querySelector('link[rel="alternate"]') || entry.querySelector('link');
+          const link = linkEl?.getAttribute('href') || '';
+          const summary = entry.querySelector('summary')?.textContent || entry.querySelector('content')?.textContent || '';
+          const updated = entry.querySelector('updated')?.textContent || entry.querySelector('published')?.textContent;
+
+          articles.push({
+            id: genId(),
+            feedId: feed.id,
+            feedTitle: feed.title,
+            category: feed.category,
+            title,
+            link,
+            snippet: stripHtml(summary).slice(0, 300),
+            date: updated ? new Date(updated) : null,
+            thumb: extractImgFromHtml(summary)
+          });
+        });
+      }
+
+      feed.status = 'ok';
+      return articles;
+    } catch (e) {
+      console.warn(`Feed error [${feed.title}]:`, e.message);
+      feed.status = 'error';
+      return [];
+    }
+  }
+
+  function extractImgFromHtml(html) {
+    if (!html) return '';
+    const match = html.match(/<img[^>]+src=["']([^"']+)["']/i);
+    return match ? match[1] : '';
+  }
+
+
+  async function refreshAll() {
+    if (state.loading) return;
+    state.loading = true;
+    lastRefreshTime = Date.now();
+    renderArticles();
+
+    const activeFeeds = state.feeds.filter(f => f.enabled !== false);
+    const results = await Promise.allSettled(
+      activeFeeds.map(f => fetchFeed(f))
+    );
+
+    state.articles = results
+      .filter(r => r.status === 'fulfilled')
+      .flatMap(r => r.value)
+      .sort((a, b) => (b.date?.getTime() || 0) - (a.date?.getTime() || 0));
+
+    save('feeds', state.feeds);
+    // Persister les articles (limiter à 500 pour ne pas saturer localStorage)
+    save('articles', state.articles.slice(0, 500));
+    state.loading = false;
+    renderSidebar();
+    renderArticles();
+    updateLastRefresh();
+
+    const total = state.articles.length;
+    const errors = state.feeds.filter(f => f.status === 'error').length;
+    if (errors > 0) {
+      toast(`${total} articles chargés (${errors} source(s) en erreur)`, 'error');
+    } else {
+      toast(`${total} articles chargés`, 'success');
+    }
+  }
+
+  // ── Render Sidebar ──
+  function renderSidebar() {
+    const container = document.getElementById('categoryList');
+    let html = '';
+
+    // Thèmes
+    state.categories.forEach(cat => {
+      const feedsInCat = state.feeds.filter(f => f.category === cat.name);
+      const unreadCount = state.articles.filter(a => a.category === cat.name && !state.readArticles.has(normalizeUrl(a.link))).length;
+      const colors = getCssVar(cat.colorClass);
+      const isActive = state.currentView === 'category:' + cat.name;
+      const collapsed = cat.collapsed ? 'collapsed' : '';
+
+      html += `<div class="nf-category-toggle ${collapsed}" onclick="NF.toggleCategory('${cat.id}','${cat.name}')" data-view="category:${cat.name}">
+        <i class="bi bi-chevron-down nf-chevron"></i>
+        <span class="nf-category-color" style="background:${colors.text}"></span>
+        <span style="flex:1;${isActive ? 'color:var(--primary);font-weight:700':''}">${cat.name}</span>
+        <span class="nf-nav-badge" ${unreadCount > 0 ? 'style="color:var(--primary);font-weight:800"' : ''}>${unreadCount || ''}</span>
+      </div>`;
+
+      if (!cat.collapsed) {
+        feedsInCat.forEach(feed => {
+          html += renderFeedItem(feed);
+        });
+      }
+    });
+
+    // Sources sans thème
+    const uncategorized = state.feeds.filter(f => !f.category);
+    if (uncategorized.length > 0) {
+      html += `<div class="nf-category-toggle" style="margin-top:8px">
+        <i class="bi bi-chevron-down nf-chevron"></i>
+        <span style="flex:1;color:var(--muted)">Sans thème</span>
+      </div>`;
+      uncategorized.forEach(feed => {
+        html += renderFeedItem(feed);
+      });
+    }
+
+    container.innerHTML = html;
+    updateCounts();
+  }
+
+  function renderFeedItem(feed) {
+    const isActiveFeed = state.currentView === 'feed:' + feed.id;
+    const unread = state.articles.filter(a => a.feedId === feed.id && !state.readArticles.has(normalizeUrl(a.link))).length;
+    const isDisabled = feed.enabled === false;
+    const isStarred = feed.starred === true;
+    const statusClass = feed.status === 'error' ? 'error' : feed.status === 'ok' ? 'ok' : '';
+
+    return `<div class="nf-feed-item ${isActiveFeed ? 'active' : ''} ${isDisabled ? 'disabled' : ''}" onclick="NF.setView('feed:${feed.id}')">
+      <span class="nf-feed-star ${isStarred ? 'starred' : ''}" onclick="event.stopPropagation();NF.toggleFeedStar('${feed.id}')" title="${isStarred ? 'Retirer des favoris' : 'Ajouter aux favoris'}">
+        <i class="bi bi-star${isStarred ? '-fill' : ''}"></i>
+      </span>
+      <span class="nf-feed-icon">${feed.title.charAt(0).toUpperCase()}</span>
+      <span style="flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${feed.title}</span>
+      <span class="nf-nav-badge" ${unread > 0 ? 'style="color:var(--primary);font-weight:800"' : ''}>${unread || ''}</span>
+      <span class="nf-feed-status ${statusClass}"></span>
+      <button class="nf-feed-actions-btn" onclick="event.stopPropagation();NF.toggleFeedMenu('${feed.id}')" title="Actions">
+        <i class="bi bi-three-dots"></i>
+      </button>
+      <div class="nf-ctx-menu" id="ctx-${feed.id}">
+        <div class="nf-ctx-item" onclick="event.stopPropagation();NF.openEditFeed('${feed.id}')">
+          <i class="bi bi-pencil"></i> Modifier
+        </div>
+        <div class="nf-ctx-item" onclick="event.stopPropagation();NF.toggleFeedEnabled('${feed.id}')">
+          <i class="bi bi-${isDisabled ? 'play-circle' : 'pause-circle'}"></i> ${isDisabled ? 'Activer' : 'Désactiver'}
+        </div>
+        <div class="nf-ctx-sep"></div>
+        <div class="nf-ctx-item danger" onclick="event.stopPropagation();NF.removeFeed('${feed.id}')">
+          <i class="bi bi-trash3"></i> Supprimer
+        </div>
+      </div>
+    </div>`;
+  }
+
+  function updateCounts() {
+    const totalUnread = state.articles.filter(a => !state.readArticles.has(normalizeUrl(a.link))).length;
+    const allEl = document.getElementById('countAll');
+    allEl.textContent = totalUnread || '—';
+    if (totalUnread > 0) { allEl.style.color = 'var(--primary)'; allEl.style.fontWeight = '800'; }
+    else { allEl.style.color = ''; allEl.style.fontWeight = ''; }
+    document.getElementById('countBookmarks').textContent = state.bookmarks.size || '—';
+  }
+
+  // ── Render Articles ──
+  function renderArticles() {
+    const container = document.getElementById('articleList');
+
+    if (state.loading) {
+      container.innerHTML = `<div class="nf-loader"><div class="nf-spinner"></div> Chargement des flux...</div>`;
+      return;
+    }
+
+    let filtered = getFilteredArticles();
+
+    // Recherche
+    if (state.searchQuery) {
+      const q = state.searchQuery.toLowerCase();
+      filtered = filtered.filter(a =>
+        a.title.toLowerCase().includes(q) ||
+        a.snippet.toLowerCase().includes(q) ||
+        a.feedTitle.toLowerCase().includes(q)
+      );
+    }
+
+    if (filtered.length === 0) {
+      container.innerHTML = renderEmpty();
+      updateViewHeader(0);
+      return;
+    }
+
+    // Tri
+    sortArticles(filtered);
+    // Dédoublonnage
+    const groups = deduplicateArticles(filtered);
+    updateViewHeader(groups.length);
+
+    container.innerHTML = groups.map(g => renderArticleGroup(g)).join('');
+  }
+
+  function getFilteredArticles() {
+    const view = state.currentView;
+    let articles;
+    if (view === 'all') articles = [...state.articles];
+    else if (view === 'bookmarks') articles = state.articles.filter(a => state.bookmarks.has(normalizeUrl(a.link)));
+    else if (view.startsWith('category:')) {
+      const cat = view.replace('category:', '');
+      articles = state.articles.filter(a => a.category === cat);
+    } else if (view.startsWith('feed:')) {
+      const feedId = view.replace('feed:', '');
+      articles = state.articles.filter(a => a.feedId === feedId);
+    } else {
+      articles = [...state.articles];
+    }
+
+    // Filtre lus/non lus
+    if (state.readFilter === 'unread') {
+      articles = articles.filter(a => !state.readArticles.has(normalizeUrl(a.link)));
+    } else if (state.readFilter === 'read') {
+      articles = articles.filter(a => state.readArticles.has(normalizeUrl(a.link)));
+    }
+    return articles;
+  }
+
+  function updateViewHeader(count) {
+    const view = state.currentView;
+    let title = 'Tous les articles';
+    if (view === 'bookmarks') title = 'Favoris';
+    else if (view.startsWith('category:')) title = view.replace('category:', '');
+    else if (view.startsWith('feed:')) {
+      const feed = state.feeds.find(f => f.id === view.replace('feed:', ''));
+      title = feed?.title || 'Source';
+    }
+    document.getElementById('viewTitle').textContent = title;
+    document.getElementById('viewCount').textContent = count > 0 ? `${count} article${count > 1 ? 's' : ''}` : '';
+  }
+
+  function renderArticleGroup(group) {
+    const a = group.main;
+    const isRead = state.readArticles.has(normalizeUrl(a.link));
+    const isBookmarked = state.bookmarks.has(normalizeUrl(a.link));
+    const catColors = getCssVar(getCategoryColor(a.category));
+
+    let dupHtml = '';
+    if (group.duplicates.length > 0) {
+      const dupItems = group.duplicates.map(d =>
+        `<div class="nf-dup-item">
+          <span class="nf-feed-icon" style="width:14px;height:14px;font-size:8px">${d.feedTitle.charAt(0)}</span>
+          <a href="${d.link}" target="_blank" rel="noopener">${d.feedTitle}</a>
+          <span style="color:var(--muted);font-size:11px">${d.date ? timeAgo(d.date) : ''}</span>
+        </div>`
+      ).join('');
+      dupHtml = `<details class="nf-duplicates">
+        <summary><i class="bi bi-layers"></i> + ${group.duplicates.length} autre${group.duplicates.length > 1 ? 's' : ''} source${group.duplicates.length > 1 ? 's' : ''}</summary>
+        ${dupItems}
+      </details>`;
+    }
+
+    return `<article class="nf-article ${isRead ? 'read' : ''}" data-link="${normalizeUrl(a.link)}">
+      <div class="nf-swipe-hint left"><i class="bi bi-check2"></i></div>
+      <div class="nf-swipe-hint right"><i class="bi bi-bookmark-fill"></i></div>
+      <div class="nf-article-meta">
+        <span class="nf-article-source">${a.feedTitle}</span>
+        ${a.category ? `<span class="nf-article-category" style="background:${catColors.bg};color:${catColors.text};border:1px solid ${catColors.border}">${a.category}</span>` : ''}
+        <span>${a.date ? timeAgo(a.date) : ''}</span>
+      </div>
+      <div class="nf-article-body">
+        <div class="nf-article-content">
+          <div class="nf-article-title">
+            <a href="${a.link}" target="_blank" rel="noopener" onclick="NF.markRead('${normalizeUrl(a.link)}')">${a.title}</a>
+          </div>
+          <div class="nf-article-snippet">${a.snippet}</div>
+          ${dupHtml}
+          <div class="nf-article-actions">
+            <button onclick="NF.toggleBookmark('${normalizeUrl(a.link)}')" class="${isBookmarked ? 'bookmarked' : ''}" title="Favori">
+              <i class="bi bi-${isBookmarked ? 'bookmark-fill' : 'bookmark'}"></i>
+            </button>
+            <button onclick="NF.markRead('${normalizeUrl(a.link)}')" title="Marquer comme lu">
+              <i class="bi bi-check2"></i>
+            </button>
+            <button onclick="NF.shareArticle('${a.link}','${a.title.replace(/'/g, "\\'")}')" title="Partager">
+              <i class="bi bi-share"></i>
+            </button>
+          </div>
+        </div>
+        ${a.thumb
+          ? `<img class="nf-article-thumb" src="${a.thumb}" alt="" loading="lazy" onerror="this.style.display='none'">`
+          : `<div class="nf-article-thumb-placeholder" style="background:var(--${getCategoryColor(a.category)})">${a.feedTitle.charAt(0).toUpperCase()}</div>`}
+      </div>
+    </article>`;
+  }
+
+  function renderEmpty() {
+    if (state.feeds.length === 0) {
+      return `<div class="nf-empty">
+        <i class="bi bi-rss"></i>
+        <h3>Aucune source configurée</h3>
+        <p>Ajoutez vos premiers flux RSS pour commencer votre veille.</p>
+        <button class="nf-btn nf-btn-primary" onclick="NF.openModal('addFeed')"><i class="bi bi-plus"></i> Ajouter une source</button>
+      </div>`;
+    }
+    if (state.currentView === 'bookmarks') {
+      return `<div class="nf-empty">
+        <i class="bi bi-bookmark"></i>
+        <h3>Aucun favori</h3>
+        <p>Cliquez sur l'icône signet d'un article pour le retrouver ici.</p>
+      </div>`;
+    }
+    if (state.searchQuery) {
+      return `<div class="nf-empty">
+        <i class="bi bi-search"></i>
+        <h3>Aucun résultat</h3>
+        <p>Aucun article ne correspond à « ${state.searchQuery} ».</p>
+      </div>`;
+    }
+    return `<div class="nf-empty">
+      <i class="bi bi-newspaper"></i>
+      <h3>Aucun article</h3>
+      <p>Cliquez sur le bouton rafraîchir pour charger les flux.</p>
+    </div>`;
+  }
+
+  // ── Actions ──
+  function setView(view) {
+    state.currentView = view;
+    state.searchQuery = '';
+    document.getElementById('searchInput').value = '';
+
+    // Update active states
+    document.querySelectorAll('.nf-nav-item, .nf-feed-item').forEach(el => el.classList.remove('active'));
+    const target = document.querySelector(`[data-view="${view}"]`);
+    if (target) target.classList.add('active');
+
+    renderArticles();
+    closeSidebarMobile();
+  }
+
+  function toggleCategory(catId, catName) {
+    const cat = state.categories.find(c => c.id === catId);
+    if (cat) {
+      // Si on clique et c'est déjà ouvert : naviguer vers la catégorie
+      if (!cat.collapsed) {
+        if (state.currentView === 'category:' + catName) {
+          cat.collapsed = true;
+        } else {
+          state.currentView = 'category:' + catName;
+        }
+      } else {
+        cat.collapsed = false;
+      }
+      save('categories', state.categories);
+      renderSidebar();
+      renderArticles();
+    }
+  }
+
+  function markRead(normalizedUrl) {
+    state.readArticles.add(normalizedUrl);
+    save('readArticles', state.readArticles);
+    renderArticles();
+  }
+
+  function toggleBookmark(normalizedUrl) {
+    if (state.bookmarks.has(normalizedUrl)) {
+      state.bookmarks.delete(normalizedUrl);
+    } else {
+      state.bookmarks.add(normalizedUrl);
+    }
+    save('bookmarks', state.bookmarks);
+    renderSidebar();
+    renderArticles();
+  }
+
+  function shareArticle(url, title) {
+    if (navigator.share) {
+      navigator.share({ title, url }).catch(() => {});
+    } else {
+      navigator.clipboard.writeText(url).then(() => toast('Lien copié', 'info'));
+    }
+  }
+
+  function onSearch() {
+    state.searchQuery = document.getElementById('searchInput').value.trim();
+    renderArticles();
+  }
+
+  // ── Marquer tous comme lus ──
+  function markAllRead() {
+    const filtered = getFilteredArticles();
+    if (filtered.length === 0) return;
+    filtered.forEach(a => state.readArticles.add(normalizeUrl(a.link)));
+    save('readArticles', state.readArticles);
+    renderSidebar();
+    renderArticles();
+    toast(`${filtered.length} article(s) marqué(s) comme lu(s)`, 'info');
+  }
+
+  // ── Tri ──
+  function toggleSort() {
+    const cycle = { date: 'source', source: 'unread', unread: 'date' };
+    state.sortMode = cycle[state.sortMode] || 'date';
+    save('sortMode', state.sortMode);
+    updateSortIcon();
+    renderArticles();
+  }
+
+  function updateSortIcon() {
+    const btn = document.getElementById('sortBtn');
+    const icon = document.getElementById('sortIcon');
+    const labels = { date: 'Tri par date', source: 'Tri par source', unread: 'Non lus d\'abord' };
+    const icons = { date: 'bi bi-sort-down', source: 'bi bi-filter-left', unread: 'bi bi-sort-up' };
+    icon.className = icons[state.sortMode] || 'bi bi-sort-down';
+    btn.title = labels[state.sortMode] || 'Tri';
+    if (state.sortMode !== 'date') {
+      btn.style.background = 'var(--primary-soft)';
+      btn.style.color = 'var(--primary)';
+      btn.style.borderColor = 'var(--primary)';
+    } else {
+      btn.style.background = ''; btn.style.color = ''; btn.style.borderColor = '';
+    }
+  }
+
+  function sortArticles(articles) {
+    if (state.sortMode === 'source') {
+      return articles.sort((a, b) => a.feedTitle.localeCompare(b.feedTitle) || (b.date?.getTime() || 0) - (a.date?.getTime() || 0));
+    }
+    if (state.sortMode === 'unread') {
+      return articles.sort((a, b) => {
+        const aRead = state.readArticles.has(normalizeUrl(a.link)) ? 1 : 0;
+        const bRead = state.readArticles.has(normalizeUrl(b.link)) ? 1 : 0;
+        return aRead - bRead || (b.date?.getTime() || 0) - (a.date?.getTime() || 0);
+      });
+    }
+    // date (défaut)
+    return articles.sort((a, b) => (b.date?.getTime() || 0) - (a.date?.getTime() || 0));
+  }
+
+  // ── Dernier refresh ──
+  function updateLastRefresh() {
+    const el = document.getElementById('lastRefresh');
+    if (!el || !lastRefreshTime) return;
+    const update = () => {
+      const diff = Math.round((Date.now() - lastRefreshTime) / 60000);
+      if (diff < 1) el.textContent = 'à l\'instant';
+      else if (diff < 60) el.textContent = `il y a ${diff} min`;
+      else el.textContent = `il y a ${Math.floor(diff / 60)} h`;
+    };
+    update();
+    if (window._refreshInterval) clearInterval(window._refreshInterval);
+    window._refreshInterval = setInterval(update, 30000);
+  }
+
+  function toggleReadFilter() {
+    // Cycle : all → unread → read → all
+    const cycle = { all: 'unread', unread: 'read', read: 'all' };
+    state.readFilter = cycle[state.readFilter] || 'all';
+    const icon = document.getElementById('filterReadIcon');
+    const btn = document.getElementById('filterReadBtn');
+    if (state.readFilter === 'unread') {
+      icon.className = 'bi bi-eye-fill';
+      btn.title = 'Non lus uniquement';
+      btn.style.background = 'var(--primary-soft)';
+      btn.style.color = 'var(--primary)';
+      btn.style.borderColor = 'var(--primary)';
+    } else if (state.readFilter === 'read') {
+      icon.className = 'bi bi-eye-slash';
+      btn.title = 'Lus uniquement';
+      btn.style.background = 'var(--primary-soft)';
+      btn.style.color = 'var(--primary)';
+      btn.style.borderColor = 'var(--primary)';
+    } else {
+      icon.className = 'bi bi-eye';
+      btn.title = 'Tous les articles';
+      btn.style.background = '';
+      btn.style.color = '';
+      btn.style.borderColor = '';
+    }
+    renderArticles();
+  }
+
+  // ── Add feed ──
+  async function addFeed() {
+    const urlInput = document.getElementById('addFeedUrl');
+    const catSelect = document.getElementById('addFeedCategory');
+    const newCatInput = document.getElementById('addFeedNewCategory');
+    const statusEl = document.getElementById('addFeedStatus');
+
+    let url = urlInput.value.trim();
+    if (!url) { statusEl.innerHTML = '<span style="color:var(--danger-text)">Veuillez entrer une URL</span>'; return; }
+    if (!url.startsWith('http')) url = 'https://' + url;
+
+    const category = newCatInput.value.trim() || catSelect.value;
+
+    statusEl.innerHTML = '<span style="color:var(--info-text)">Détection du flux RSS...</span>';
+
+    let feedUrl = url;
+    let feedTitle = '';
+
+    // Détecter si l'URL est déjà un flux RSS par son extension
+    const urlLow = url.toLowerCase();
+    const looksLikeFeed = urlLow.endsWith('.rss') || urlLow.endsWith('.xml') || urlLow.endsWith('.atom')
+      || urlLow.includes('/feed') || urlLow.includes('/rss') || urlLow.includes('/atom');
+
+    try {
+      const text = await fetchWithFallback(url);
+      const doc = new DOMParser().parseFromString(text, 'text/xml');
+      // RSS 2.0 ou RSS 1.0 (namespacé)
+      const hasItems = doc.querySelector('item')
+        || doc.getElementsByTagNameNS('http://purl.org/rss/1.0/', 'item').length > 0;
+      const hasEntries = doc.querySelector('entry');
+
+      if (!doc.querySelector('parsererror') && (hasItems || hasEntries)) {
+        // C'est un flux RSS/Atom valide
+        feedTitle = doc.querySelector('channel > title')?.textContent
+          || doc.querySelector('feed > title')?.textContent
+          || doc.getElementsByTagNameNS('http://purl.org/rss/1.0/', 'title')[0]?.textContent
+          || new URL(url).hostname;
+      } else {
+        // C'est un site web, chercher le lien RSS dans le HTML
+        const htmlDoc = new DOMParser().parseFromString(text, 'text/html');
+        const rssLink = htmlDoc.querySelector('link[type="application/rss+xml"], link[type="application/atom+xml"]');
+        if (rssLink) {
+          feedUrl = new URL(rssLink.getAttribute('href'), url).href;
+          feedTitle = rssLink.getAttribute('title') || new URL(url).hostname;
+        } else {
+          // Essayer les chemins courants
+          const commonPaths = ['/feed', '/rss', '/feed.xml', '/rss.xml', '/atom.xml'];
+          let found = false;
+          for (const path of commonPaths) {
+            try {
+              const tryUrl = new URL(path, url).href;
+              const tryText = await fetchWithFallback(tryUrl);
+              const tryDoc = new DOMParser().parseFromString(tryText, 'text/xml');
+              if (!tryDoc.querySelector('parsererror') && (tryDoc.querySelector('item') || tryDoc.querySelector('entry'))) {
+                feedUrl = tryUrl;
+                feedTitle = tryDoc.querySelector('channel > title')?.textContent || new URL(url).hostname;
+                found = true;
+                break;
+              }
+            } catch {}
+          }
+          if (!found) {
+            statusEl.innerHTML = '<span style="color:var(--danger-text)">Aucun flux RSS détecté sur ce site</span>';
+            return;
+          }
+        }
+      }
+    } catch (e) {
+      // Si le proxy échoue mais que l'URL ressemble à un flux RSS, l'accepter quand même
+      if (looksLikeFeed) {
+        feedUrl = url;
+        feedTitle = new URL(url).hostname.replace('www.', '');
+        statusEl.innerHTML = '<span style="color:var(--warn-text)">Flux ajouté (non vérifié — le proxy n\'a pas pu y accéder)</span>';
+      } else {
+        statusEl.innerHTML = `<span style="color:var(--danger-text)">Erreur : ${e.message}</span>`;
+        return;
+      }
+    }
+
+    // Vérifier doublon
+    if (state.feeds.some(f => f.url === feedUrl)) {
+      statusEl.innerHTML = '<span style="color:var(--warn-text)">Cette source existe déjà</span>';
+      return;
+    }
+
+    // Ajouter la catégorie si nouvelle
+    if (category && !state.categories.some(c => c.name === category)) {
+      state.categories.push({
+        id: genId(),
+        name: category,
+        colorClass: CATEGORY_COLORS[state.categories.length % CATEGORY_COLORS.length],
+        collapsed: false
+      });
+      save('categories', state.categories);
+    }
+
+    const newFeed = {
+      id: genId(),
+      url: feedUrl,
+      title: feedTitle,
+      category: category || '',
+      siteUrl: url,
+      status: 'unknown',
+      starred: false,
+      enabled: true
+    };
+    state.feeds.push(newFeed);
+    save('feeds', state.feeds);
+
+    // Charger les articles de cette source
+    const newArticles = await fetchFeed(newFeed);
+    state.articles = [...state.articles, ...newArticles]
+      .sort((a, b) => (b.date?.getTime() || 0) - (a.date?.getTime() || 0));
+    save('feeds', state.feeds);
+
+    closeModal('addFeed');
+    urlInput.value = '';
+    newCatInput.value = '';
+    statusEl.innerHTML = '';
+    renderSidebar();
+    renderArticles();
+    updateCategorySelect();
+    toast(`Source « ${feedTitle} » ajoutée`, 'success');
+  }
+
+  // ── OPML ──
+  function exportOpml() {
+    let xml = '<?xml version="1.0" encoding="UTF-8"?>\n<opml version="2.0">\n<head><title>NewsFeed Export</title></head>\n<body>\n';
+
+    const catMap = new Map();
+    state.feeds.forEach(f => {
+      const cat = f.category || 'Sans thème';
+      if (!catMap.has(cat)) catMap.set(cat, []);
+      catMap.get(cat).push(f);
+    });
+
+    catMap.forEach((feeds, cat) => {
+      xml += `  <outline text="${escXml(cat)}" title="${escXml(cat)}">\n`;
+      feeds.forEach(f => {
+        xml += `    <outline type="rss" text="${escXml(f.title)}" title="${escXml(f.title)}" xmlUrl="${escXml(f.url)}" htmlUrl="${escXml(f.siteUrl || '')}"/>\n`;
+      });
+      xml += '  </outline>\n';
+    });
+
+    xml += '</body>\n</opml>';
+
+    const blob = new Blob([xml], { type: 'text/xml' });
+    const a = document.createElement('a');
+    a.href = URL.createObjectURL(blob);
+    a.download = 'newsfeed-export.opml';
+    a.click();
+    URL.revokeObjectURL(a.href);
+    toast('OPML exporté', 'success');
+  }
+
+  function escXml(s) {
+    return (s || '').replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
+  }
+
+  function removeFeed(feedId) {
+    const feed = state.feeds.find(f => f.id === feedId);
+    if (!feed) return;
+    if (!confirm(`Supprimer « ${feed.title} » ?`)) return;
+    state.feeds = state.feeds.filter(f => f.id !== feedId);
+    state.articles = state.articles.filter(a => a.feedId !== feedId);
+
+    // Supprimer catégorie si vide
+    if (feed.category) {
+      const remaining = state.feeds.filter(f => f.category === feed.category);
+      if (remaining.length === 0) {
+        state.categories = state.categories.filter(c => c.name !== feed.category);
+        save('categories', state.categories);
+      }
+    }
+
+    save('feeds', state.feeds);
+    closeFeedMenus();
+    renderSidebar();
+    renderArticles();
+    toast(`Source « ${feed.title} » supprimée`, 'info');
+  }
+
+  // ── Feed context menu ──
+  function toggleFeedMenu(feedId) {
+    const menu = document.getElementById('ctx-' + feedId);
+    const wasOpen = menu?.classList.contains('show');
+    closeFeedMenus();
+    if (!wasOpen && menu) menu.classList.add('show');
+  }
+
+  function closeFeedMenus() {
+    document.querySelectorAll('.nf-ctx-menu.show').forEach(m => m.classList.remove('show'));
+  }
+
+  // ── Star / Enable / Edit ──
+  function toggleFeedStar(feedId) {
+    const feed = state.feeds.find(f => f.id === feedId);
+    if (!feed) return;
+    feed.starred = !feed.starred;
+    save('feeds', state.feeds);
+    renderSidebar();
+  }
+
+  function toggleFeedEnabled(feedId) {
+    const feed = state.feeds.find(f => f.id === feedId);
+    if (!feed) return;
+    feed.enabled = feed.enabled === false ? true : false;
+    save('feeds', state.feeds);
+    closeFeedMenus();
+    // Si on désactive, retirer les articles de ce feed
+    if (feed.enabled === false) {
+      state.articles = state.articles.filter(a => a.feedId !== feedId);
+    }
+    renderSidebar();
+    renderArticles();
+    toast(`${feed.title} ${feed.enabled === false ? 'désactivé' : 'activé'}`, 'info');
+  }
+
+  function openEditFeed(feedId) {
+    const feed = state.feeds.find(f => f.id === feedId);
+    if (!feed) return;
+    closeFeedMenus();
+    document.getElementById('editFeedId').value = feedId;
+    document.getElementById('editFeedTitle').value = feed.title;
+    document.getElementById('editFeedUrl').value = feed.url;
+    // Remplir le select catégorie
+    const sel = document.getElementById('editFeedCategory');
+    sel.innerHTML = '<option value="">— Sans thème —</option>' +
+      state.categories.map(c => `<option value="${c.name}" ${c.name === feed.category ? 'selected' : ''}>${c.name}</option>`).join('');
+    document.getElementById('editFeedNewCategory').value = '';
+    openModal('editFeed');
+  }
+
+  function saveEditFeed() {
+    const feedId = document.getElementById('editFeedId').value;
+    const feed = state.feeds.find(f => f.id === feedId);
+    if (!feed) return;
+
+    const newTitle = document.getElementById('editFeedTitle').value.trim();
+    const newUrl = document.getElementById('editFeedUrl').value.trim();
+    const newCatInput = document.getElementById('editFeedNewCategory').value.trim();
+    const newCategory = newCatInput || document.getElementById('editFeedCategory').value;
+
+    if (!newTitle || !newUrl) {
+      toast('Le nom et l\'URL sont requis', 'error');
+      return;
+    }
+
+    // Créer la catégorie si nouvelle
+    if (newCategory && !state.categories.some(c => c.name === newCategory)) {
+      state.categories.push({
+        id: genId(),
+        name: newCategory,
+        colorClass: CATEGORY_COLORS[state.categories.length % CATEGORY_COLORS.length],
+        collapsed: false
+      });
+    }
+
+    // Nettoyer ancienne catégorie si vide
+    const oldCategory = feed.category;
+    feed.title = newTitle;
+    feed.url = newUrl;
+    feed.category = newCategory;
+    feed.status = 'unknown';
+
+    if (oldCategory && oldCategory !== newCategory) {
+      const remaining = state.feeds.filter(f => f.category === oldCategory);
+      if (remaining.length === 0) {
+        state.categories = state.categories.filter(c => c.name !== oldCategory);
+      }
+    }
+
+    save('feeds', state.feeds);
+    save('categories', state.categories);
+    closeModal('editFeed');
+    renderSidebar();
+    updateCategorySelect();
+    toast(`Source « ${newTitle} » modifiée`, 'success');
+  }
+
+  function saveProxy() {
+    const url = document.getElementById('proxyUrl').value.trim();
+    save('proxy', url || DEFAULT_PROXY);
+    toast('Proxy CORS enregistré', 'success');
+  }
+
+  // ── Modal ──
+  function openModal(name) {
+    const modal = document.getElementById('modal' + name.charAt(0).toUpperCase() + name.slice(1));
+    if (!modal) return;
+    if (name === 'settings') { document.getElementById('proxyUrl').value = getProxy(); }
+    if (name === 'addFeed') { updateCategorySelect(); document.getElementById('addFeedStatus').innerHTML = ''; }
+    setTimeout(() => modal.classList.add('show'), 10);
+    closeSidebarMobile();
+  }
+
+  function closeModal(name) {
+    const modal = document.getElementById('modal' + name.charAt(0).toUpperCase() + name.slice(1));
+    if (modal) modal.classList.remove('show');
+  }
+
+  function updateCategorySelect() {
+    const opts = '<option value="">— Sans thème —</option>' +
+      state.categories.map(c => `<option value="${c.name}">${c.name}</option>`).join('');
+    const sel1 = document.getElementById('addFeedCategory');
+    const sel2 = document.getElementById('discoverCategory');
+    if (sel1) sel1.innerHTML = opts;
+    if (sel2) sel2.innerHTML = opts;
+  }
+
+  function addFeedTab(btn, tabId) {
+    btn.parentElement.querySelectorAll('.nf-tab').forEach(t => t.classList.remove('active'));
+    btn.classList.add('active');
+    document.getElementById('tabAddDirect').style.display = tabId === 'tabAddDirect' ? '' : 'none';
+    document.getElementById('tabAddDiscover').style.display = tabId === 'tabAddDiscover' ? '' : 'none';
+  }
+
+  // ── Découverte de flux RSS depuis une page éditeur ──
+  async function discoverFeeds() {
+    const urlInput = document.getElementById('discoverUrl');
+    const statusEl = document.getElementById('discoverStatus');
+    const resultsEl = document.getElementById('discoverResults');
+    let url = urlInput.value.trim();
+    if (!url) { statusEl.innerHTML = '<span style="color:var(--danger-text)">Veuillez entrer une URL</span>'; return; }
+    if (!url.startsWith('http')) url = 'https://' + url;
+
+    statusEl.innerHTML = '<span style="color:var(--info-text)"><i class="bi bi-hourglass-split"></i> Scan en cours...</span>';
+    resultsEl.innerHTML = '';
+
+    try {
+      const html = await fetchWithFallback(url);
+      const doc = new DOMParser().parseFromString(html, 'text/html');
+      const baseUrl = new URL(url).origin;
+
+      // Extraire le nom du site
+      const ogSiteName = doc.querySelector('meta[property="og:site_name"]')?.getAttribute('content');
+      const pageTitle = doc.querySelector('title')?.textContent?.trim();
+      const h1 = doc.querySelector('h1')?.textContent?.trim();
+      const siteName = ogSiteName
+        || (pageTitle ? pageTitle.split(/[—\-|·]/)[0].trim() : '')
+        || (h1 ? h1.split(/[—\-|·]/)[0].trim() : '')
+        || new URL(url).hostname.replace('www.', '');
+
+      // Chercher tous les liens vers des flux RSS/Atom
+      const feeds = [];
+      const seen = new Set();
+
+      // 1. Balises <link> RSS/Atom dans le <head>
+      doc.querySelectorAll('link[type="application/rss+xml"], link[type="application/atom+xml"]').forEach(link => {
+        const href = resolveUrl(link.getAttribute('href'), baseUrl);
+        if (href && !seen.has(href)) {
+          seen.add(href);
+          const rawTitle = link.getAttribute('title') || '';
+          feeds.push({ url: href, title: rawTitle || `${siteName} — Flux principal`, group: 'Flux détectés (head)' });
+        }
+      });
+
+      // 2. Liens <a> pointant vers des URLs RSS/Atom (pages type /flux, /rss)
+      doc.querySelectorAll('a[href]').forEach(a => {
+        const href = resolveUrl(a.getAttribute('href'), baseUrl);
+        if (!href || seen.has(href)) return;
+        const hrefLow = href.toLowerCase();
+        const linkText = a.textContent.trim().toLowerCase();
+
+        // Exclure JSON (non parseable) et ATOM (on préfère RSS quand les deux existent)
+        if (linkText === 'json' || hrefLow.includes('/json/') || hrefLow.endsWith('.json')) return;
+        if (linkText === 'atom' || hrefLow.includes('/atom/') || hrefLow.endsWith('.atom')) return;
+
+        if (hrefLow.includes('/rss') || hrefLow.includes('/flux') || hrefLow.includes('/feed')
+          || hrefLow.endsWith('.rss') || hrefLow.endsWith('.xml')) {
+          seen.add(href);
+
+          // Déterminer le groupe depuis le contexte DOM (titre de section, h2, h3...)
+          let group = 'Flux';
+          const table = a.closest('table');
+          if (table) {
+            // Chercher le heading avant le tableau
+            let prev = table.previousElementSibling;
+            while (prev && !prev.matches('h1,h2,h3,h4,h5,h6')) prev = prev.previousElementSibling;
+            if (prev) group = prev.textContent.trim().slice(0, 60);
+          } else {
+            const section = a.closest('section, div[class], fieldset, details');
+            if (section) {
+              const heading = section.querySelector('h1,h2,h3,h4,h5,h6,legend,summary,strong');
+              if (heading) group = heading.textContent.trim().slice(0, 60);
+            }
+          }
+
+          // Construire un libellé lisible depuis le contexte de la ligne
+          let title = '';
+          const row = a.closest('tr');
+          if (row) {
+            const cells = row.querySelectorAll('td, th');
+            const rowLabel = cells[0]?.textContent?.trim() || '';
+            title = rowLabel ? `${siteName} — ${rowLabel}` : `${siteName}`;
+          } else {
+            const parent = a.closest('li, p, div');
+            const parentText = parent?.textContent?.trim().replace(/\s+/g, ' ') || '';
+            title = parentText.length > 5 && parentText.length < 80
+              ? `${siteName} — ${parentText}`
+              : (a.getAttribute('title') || `${siteName}`);
+          }
+
+          feeds.push({ url: href, title, group });
+        }
+      });
+
+      if (feeds.length === 0) {
+        statusEl.innerHTML = '<span style="color:var(--warn-text)">Aucun flux RSS trouvé sur cette page</span>';
+        return;
+      }
+
+      statusEl.innerHTML = `<span style="color:var(--success-text)">${feeds.length} flux trouvé${feeds.length > 1 ? 's' : ''}</span>`;
+
+      // Grouper par thème
+      const groups = new Map();
+      feeds.forEach(f => {
+        if (!groups.has(f.group)) groups.set(f.group, []);
+        groups.get(f.group).push(f);
+      });
+
+      // Render les résultats avec checkboxes
+      let html2 = '';
+      groups.forEach((groupFeeds, groupName) => {
+        html2 += `<div class="nf-discover-section" style="margin-bottom:12px">
+          <div style="font-weight:700;font-size:13px;margin-bottom:6px;display:flex;align-items:center;gap:6px">
+            <input type="checkbox" class="nf-discover-group" onchange="NF.toggleDiscoverGroup(this)" checked>
+            ${groupName}
+            <span style="color:var(--muted);font-weight:400;font-size:11px">(${groupFeeds.length})</span>
+          </div>`;
+        groupFeeds.forEach((f, i) => {
+          const already = state.feeds.some(ef => ef.url === f.url);
+          html2 += `<label style="display:flex;align-items:center;gap:8px;padding:4px 0 4px 20px;font-size:12px;cursor:pointer;${already ? 'opacity:.5' : ''}">
+            <input type="checkbox" class="nf-discover-feed" data-url="${f.url}" data-title="${f.title.replace(/"/g, '&quot;')}" ${already ? 'disabled' : 'checked'}>
+            <span style="flex:1">${f.title}</span>
+            ${already ? '<span style="font-size:10px;color:var(--muted);font-style:italic">déjà ajouté</span>' : ''}
+          </label>`;
+        });
+        html2 += '</div>';
+      });
+
+      html2 += `<div style="margin-top:16px;text-align:right">
+        <button class="nf-btn nf-btn-primary" onclick="NF.addDiscoveredFeeds()">
+          <i class="bi bi-plus"></i> Ajouter les flux sélectionnés
+        </button>
+      </div>`;
+
+      resultsEl.innerHTML = html2;
+
+    } catch (e) {
+      statusEl.innerHTML = `<span style="color:var(--danger-text)">Erreur : ${e.message}</span>`;
+    }
+  }
+
+  function resolveUrl(href, baseUrl) {
+    if (!href) return null;
+    try {
+      if (href.startsWith('http')) return href;
+      return new URL(href, baseUrl).href;
+    } catch { return null; }
+  }
+
+  function toggleDiscoverGroup(checkbox) {
+    const group = checkbox.closest('.nf-discover-section');
+    if (!group) return;
+    group.querySelectorAll('.nf-discover-feed:not(:disabled)').forEach(cb => {
+      cb.checked = checkbox.checked;
+    });
+  }
+
+  function addDiscoveredFeeds() {
+    const checkboxes = document.querySelectorAll('.nf-discover-feed:checked:not(:disabled)');
+    if (checkboxes.length === 0) {
+      document.getElementById('discoverStatus').innerHTML = '<span style="color:var(--warn-text)">Aucun flux sélectionné</span>';
+      return;
+    }
+
+    const catSelect = document.getElementById('discoverCategory');
+    const newCatInput = document.getElementById('discoverNewCategory');
+    const category = newCatInput.value.trim() || catSelect.value;
+
+    // Créer la catégorie si nouvelle
+    if (category && !state.categories.some(c => c.name === category)) {
+      state.categories.push({
+        id: genId(),
+        name: category,
+        colorClass: CATEGORY_COLORS[state.categories.length % CATEGORY_COLORS.length],
+        collapsed: false
+      });
+      save('categories', state.categories);
+    }
+
+    let added = 0;
+    checkboxes.forEach(cb => {
+      const feedUrl = cb.dataset.url;
+      const feedTitle = cb.dataset.title;
+      if (!state.feeds.some(f => f.url === feedUrl)) {
+        state.feeds.push({
+          id: genId(),
+          url: feedUrl,
+          title: feedTitle,
+          category: category || '',
+          siteUrl: '',
+          status: 'unknown',
+      starred: false,
+      enabled: true
+        });
+        added++;
+      }
+    });
+
+    save('feeds', state.feeds);
+    closeModal('addFeed');
+    renderSidebar();
+    updateCategorySelect();
+    toast(`${added} source${added > 1 ? 's' : ''} ajoutée${added > 1 ? 's' : ''}`, 'success');
+    if (added > 0) refreshAll();
+  }
+
+  // ── Sidebar mobile ──
+  function toggleSidebar() {
+    document.getElementById('sidebar').classList.toggle('open');
+  }
+  function closeSidebarMobile() {
+    if (window.innerWidth <= 768) {
+      document.getElementById('sidebar').classList.remove('open');
+    }
+  }
+
+  // ── Theme ──
+  function toggleTheme() {
+    const current = document.documentElement.getAttribute('data-theme');
+    const next = current === 'dark' ? 'light' : 'dark';
+    document.documentElement.setAttribute('data-theme', next);
+    save('theme', next);
+    updateThemeIcon();
+  }
+  function updateThemeIcon() {
+    const icon = document.getElementById('themeIcon');
+    if (!icon) return;
+    const dark = document.documentElement.getAttribute('data-theme') === 'dark';
+    icon.className = dark ? 'bi bi-sun' : 'bi bi-moon';
+  }
+
+  // ── Toast ──
+  function toast(msg, type = 'info') {
+    const container = document.getElementById('toastContainer');
+    const el = document.createElement('div');
+    el.className = 'nf-toast ' + type;
+    el.innerHTML = `<i class="bi bi-${type === 'success' ? 'check-circle' : type === 'error' ? 'exclamation-circle' : 'info-circle'}" style="color:var(--${type === 'success' ? 'success' : type === 'error' ? 'danger' : 'info'}-text)"></i> ${msg}`;
+    container.appendChild(el);
+    setTimeout(() => { el.style.opacity = '0'; setTimeout(() => el.remove(), 300); }, 4000);
+  }
+
+  // ── Keyboard ──
+  // Fermer les menus contextuels au clic extérieur
+  document.addEventListener('click', (e) => {
+    if (!e.target.closest('.nf-feed-actions-btn') && !e.target.closest('.nf-ctx-menu')) {
+      closeFeedMenus();
+    }
+  });
+
+  document.addEventListener('keydown', (e) => {
+    if (e.key === 'Escape') {
+      closeFeedMenus();
+      document.querySelectorAll('.nf-modal-overlay.show').forEach(m => m.classList.remove('show'));
+      closeSidebarMobile();
+    }
+    if (e.key === '/' && !e.ctrlKey && !e.metaKey && document.activeElement.tagName !== 'INPUT') {
+      e.preventDefault();
+      document.getElementById('searchInput').focus();
+    }
+  });
+
+  // Close modals on backdrop click
+  document.querySelectorAll('.nf-modal-overlay').forEach(overlay => {
+    overlay.addEventListener('click', (e) => {
+      if (e.target === overlay) overlay.classList.remove('show');
+    });
+  });
+
+  // ── Auto-refresh ──
+  const AUTO_REFRESH_MS = 15 * 60 * 1000; // 15 minutes
+  const VISIBILITY_THRESHOLD_MS = 5 * 60 * 1000; // 5 minutes d'absence
+  let lastRefreshTime = 0;
+  let autoRefreshTimer = null;
+
+  function startAutoRefresh() {
+    stopAutoRefresh();
+    autoRefreshTimer = setInterval(() => {
+      if (!document.hidden && !state.loading) {
+        console.log('[NewsFeed] Auto-refresh');
+        refreshAll();
+      }
+    }, AUTO_REFRESH_MS);
+  }
+
+  function stopAutoRefresh() {
+    if (autoRefreshTimer) { clearInterval(autoRefreshTimer); autoRefreshTimer = null; }
+  }
+
+  // Refresh au retour sur l'onglet après > 5 min
+  document.addEventListener('visibilitychange', () => {
+    if (!document.hidden) {
+      const elapsed = Date.now() - lastRefreshTime;
+      if (elapsed > VISIBILITY_THRESHOLD_MS && !state.loading) {
+        console.log('[NewsFeed] Refresh au retour (absent ' + Math.round(elapsed / 60000) + ' min)');
+        refreshAll();
+      }
+    }
+  });
+
+  // ── Pull-to-refresh (mobile) ──
+  let touchStartY = 0;
+  let pulling = false;
+
+  document.addEventListener('touchstart', (e) => {
+    if (window.scrollY === 0) {
+      touchStartY = e.touches[0].clientY;
+      pulling = true;
+    }
+  }, { passive: true });
+
+  document.addEventListener('touchmove', (e) => {
+    if (!pulling) return;
+    const diff = e.touches[0].clientY - touchStartY;
+    if (diff > 100 && !state.loading) {
+      pulling = false;
+      refreshAll();
+    }
+  }, { passive: true });
+
+  document.addEventListener('touchend', () => { pulling = false; }, { passive: true });
+
+  // ── Swipe articles (mobile) ──
+  let swipeStartX = 0, swipeArticle = null;
+
+  document.addEventListener('touchstart', (e) => {
+    const article = e.target.closest('.nf-article');
+    if (!article) return;
+    swipeStartX = e.touches[0].clientX;
+    swipeArticle = article;
+  }, { passive: true });
+
+  document.addEventListener('touchmove', (e) => {
+    if (!swipeArticle) return;
+    const diff = e.touches[0].clientX - swipeStartX;
+    const absDiff = Math.abs(diff);
+    if (absDiff > 30) {
+      const hintLeft = swipeArticle.querySelector('.nf-swipe-hint.left');
+      const hintRight = swipeArticle.querySelector('.nf-swipe-hint.right');
+      if (diff > 0 && hintLeft) hintLeft.style.opacity = Math.min(absDiff / 80, 1);
+      if (diff < 0 && hintRight) hintRight.style.opacity = Math.min(absDiff / 80, 1);
+    }
+  }, { passive: true });
+
+  document.addEventListener('touchend', (e) => {
+    if (!swipeArticle) return;
+    const diff = e.changedTouches[0].clientX - swipeStartX;
+    const link = swipeArticle.dataset.link;
+    // Reset hints
+    swipeArticle.querySelectorAll('.nf-swipe-hint').forEach(h => h.style.opacity = 0);
+    if (link && Math.abs(diff) > 80) {
+      if (diff > 0) { markRead(link); }       // swipe droite = lu
+      else { toggleBookmark(link); }           // swipe gauche = favori
+    }
+    swipeArticle = null;
+  }, { passive: true });
+
+  // ── Boot ──
+  function init() {
+    loadState();
+    initDefaults();
+    updateSortIcon();
+    renderSidebar();
+    renderArticles();
+    refreshAll();
+    startAutoRefresh();
+  }
+
+  document.addEventListener('DOMContentLoaded', init);
+
+  // Public API
+  return {
+    setView, toggleCategory, markRead, toggleBookmark, shareArticle,
+    onSearch, toggleReadFilter, markAllRead, toggleSort,
+    addFeed, exportOpml, removeFeed,
+    openModal, closeModal, toggleSidebar, toggleTheme,
+    refreshAll, saveProxy, addFeedTab,
+    discoverFeeds, toggleDiscoverGroup, addDiscoveredFeeds,
+    toggleFeedMenu, toggleFeedStar, toggleFeedEnabled,
+    openEditFeed, saveEditFeed
+  };
+})();
+</script>
+
+</body>
+</html>
