@@ -609,6 +609,11 @@
           <input class="nf-input" id="editFeedNewCategory" placeholder="Ou créer un nouveau thème...">
         </div>
       </div>
+      <div class="nf-field">
+        <label class="nf-label">Rétention des articles (jours)</label>
+        <input class="nf-input" id="editFeedRetention" type="number" min="1" max="365" placeholder="7">
+        <p style="font-size:11px;color:var(--muted);margin-top:4px">Les articles plus anciens seront supprimés automatiquement. Les favoris sont conservés.</p>
+      </div>
     </div>
     <div class="nf-modal-footer">
       <button class="nf-btn nf-btn-ghost" onclick="NF.closeModal('editFeed')">Annuler</button>
@@ -690,7 +695,7 @@ const NF = (() => {
   const CATEGORY_COLORS = ['cat-a','cat-b','cat-c','cat-d','cat-e','cat-f'];
 
   let state = {
-    feeds: [],         // { id, url, title, category, siteUrl, status, starred, enabled }
+    feeds: [],         // { id, url, title, category, siteUrl, status, starred, enabled, retention }
     categories: [],    // { id, name, colorClass, collapsed }
     articles: [],      // fetched articles (persisted in localStorage)
     readArticles: new Set(),
@@ -1073,6 +1078,24 @@ const NF = (() => {
   }
 
 
+  function purgeExpiredArticles() {
+    const now = Date.now();
+    const before = state.articles.length;
+    state.articles = state.articles.filter(a => {
+      // Toujours garder les favoris
+      if (state.bookmarks.has(normalizeUrl(a.link))) return true;
+      // Pas de date = garder
+      if (!a.date) return true;
+      // Trouver la rétention de la source
+      const feed = state.feeds.find(f => f.id === a.feedId);
+      const retentionDays = feed?.retention || 7;
+      const maxAge = retentionDays * 24 * 60 * 60 * 1000;
+      return (now - a.date.getTime()) < maxAge;
+    });
+    const purged = before - state.articles.length;
+    if (purged > 0) console.log(`[NewsFeed] ${purged} article(s) expirés supprimés`);
+  }
+
   async function refreshAll() {
     if (state.loading) return;
     state.loading = true;
@@ -1102,6 +1125,9 @@ const NF = (() => {
 
     state.articles = newArticles.sort((a, b) => (b.date?.getTime() || 0) - (a.date?.getTime() || 0));
     state.loading = false;
+
+    // Purge des articles expirés (par rétention source, favoris conservés)
+    purgeExpiredArticles();
 
     save('feeds', state.feeds);
     save('articles', state.articles.slice(0, 500));
@@ -1773,6 +1799,7 @@ const NF = (() => {
     sel.innerHTML = '<option value="">— Sans thème —</option>' +
       state.categories.map(c => `<option value="${c.name}" ${c.name === feed.category ? 'selected' : ''}>${c.name}</option>`).join('');
     document.getElementById('editFeedNewCategory').value = '';
+    document.getElementById('editFeedRetention').value = feed.retention || 7;
     openModal('editFeed');
   }
 
@@ -1806,6 +1833,7 @@ const NF = (() => {
     feed.title = newTitle;
     feed.url = newUrl;
     feed.category = newCategory;
+    feed.retention = parseInt(document.getElementById('editFeedRetention').value) || 7;
     feed.status = 'unknown';
 
     if (oldCategory && oldCategory !== newCategory) {
