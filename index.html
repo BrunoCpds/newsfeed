@@ -2184,9 +2184,8 @@ const NF = (() => {
   }
   function articleAction(idx, action) {
     const a = _articleActions[idx];
-    console.log('[NF] articleAction', idx, action, a);
-    if (!a) { toast('Erreur: action introuvable idx=' + idx, 'error'); return; }
-    if (action === 'bookmark') { console.log('[NF] toggleBookmark', a.normalizedUrl); toggleBookmark(a.normalizedUrl); }
+    if (!a) return;
+    if (action === 'bookmark') toggleBookmark(a.normalizedUrl);
     else if (action === 'markread') markRead(a.normalizedUrl);
     else if (action === 'share') shareArticle(a.rawLink, a.title);
     else if (action === 'open') markRead(a.normalizedUrl);
