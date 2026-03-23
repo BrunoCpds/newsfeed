@@ -675,13 +675,15 @@ const NF = (() => {
     syncKey: 'nf_sync_key'
   };
 
+  const WORKER_BASE = 'https://cold-lab-15aeogimage-proxy.bruno-contrepoids.workers.dev';
+  const WORKER_RSS = WORKER_BASE + '/?url=';
+  const WORKER_OG = WORKER_BASE + '/og?url=';
   const CORS_PROXIES = [
+    { name: 'worker', url: WORKER_RSS },
     { name: 'codetabs', url: 'https://api.codetabs.com/v1/proxy?quest=' },
     { name: 'allorigins', url: 'https://api.allorigins.win/raw?url=' },
-    { name: 'corsproxy', url: 'https://api.cors.lol/?url=' },
   ];
-  const OGIMAGE_WORKER = 'https://cold-lab-15aeogimage-proxy.bruno-contrepoids.workers.dev/?url=';
-  const DEFAULT_PROXY = CORS_PROXIES[0].url;
+  const DEFAULT_PROXY = WORKER_RSS;
   const CATEGORY_COLORS = ['cat-a','cat-b','cat-c','cat-d','cat-e','cat-f'];
 
   let state = {
@@ -1004,23 +1006,46 @@ const NF = (() => {
     }
   }
 
+  // ── Cache og:image dans localStorage ──
+  const OG_CACHE_KEY = 'nf_og_cache';
+  function getOgCache() { try { return JSON.parse(localStorage.getItem(OG_CACHE_KEY) || '{}'); } catch { return {}; } }
+  function saveOgCache(cache) { try { localStorage.setItem(OG_CACHE_KEY, JSON.stringify(cache)); } catch {} }
+
   // Récupérer og:image via Cloudflare Worker pour les articles sans vignette
   async function fetchOgImages(articles) {
-    const noThumb = articles.filter(a => !a.thumb && a.link);
+    const ogCache = getOgCache();
+    let cacheHits = 0;
+
+    // Appliquer le cache d'abord
+    articles.forEach(a => {
+      if (!a.thumb && a.link && ogCache[a.link]) {
+        a.thumb = ogCache[a.link];
+        cacheHits++;
+      }
+    });
+    if (cacheHits > 0) renderArticles();
+
+    const noThumb = articles.filter(a => !a.thumb && a.link && ogCache[a.link] === undefined);
     if (noThumb.length === 0) return;
+
     // Traiter par lots de 5
     for (let i = 0; i < noThumb.length; i += 5) {
       const batch = noThumb.slice(i, i + 5);
       await Promise.allSettled(batch.map(async (article) => {
         try {
-          const resp = await fetch(OGIMAGE_WORKER + encodeURIComponent(article.link), { signal: AbortSignal.timeout(8000) });
+          const resp = await fetch(WORKER_OG + encodeURIComponent(article.link), { signal: AbortSignal.timeout(8000) });
           const data = await resp.json();
-          if (data.image) article.thumb = data.image;
+          if (data.image) {
+            article.thumb = data.image;
+            ogCache[article.link] = data.image;
+          } else {
+            ogCache[article.link] = null; // Marquer comme "pas d'image" pour éviter de refetcher
+          }
         } catch {}
       }));
       renderArticles();
     }
-    // Mettre à jour le cache localStorage
+    saveOgCache(ogCache);
     save('articles', state.articles.slice(0, 500));
   }
 
@@ -1035,22 +1060,34 @@ const NF = (() => {
     if (state.loading) return;
     state.loading = true;
     lastRefreshTime = Date.now();
-    renderArticles();
+
+    // Afficher le spinner seulement si pas d'articles en cache
+    if (state.articles.length === 0) renderArticles();
 
     const activeFeeds = state.feeds.filter(f => f.enabled !== false);
-    const results = await Promise.allSettled(
-      activeFeeds.map(f => fetchFeed(f))
-    );
+    let newArticles = [];
+    let completed = 0;
 
-    state.articles = results
-      .filter(r => r.status === 'fulfilled')
-      .flatMap(r => r.value)
-      .sort((a, b) => (b.date?.getTime() || 0) - (a.date?.getTime() || 0));
+    // Rendu incrémental : afficher au fur et à mesure
+    const promises = activeFeeds.map(async (feed) => {
+      const articles = await fetchFeed(feed);
+      newArticles = newArticles.concat(articles);
+      completed++;
+      // Mettre à jour l'affichage après chaque flux
+      state.articles = [...newArticles].sort((a, b) => (b.date?.getTime() || 0) - (a.date?.getTime() || 0));
+      state.loading = completed < activeFeeds.length; // Garder le flag loading tant que tout n'est pas fini
+      renderSidebar();
+      renderArticles();
+      return articles;
+    });
+
+    await Promise.allSettled(promises);
+
+    state.articles = newArticles.sort((a, b) => (b.date?.getTime() || 0) - (a.date?.getTime() || 0));
+    state.loading = false;
 
     save('feeds', state.feeds);
-    // Persister les articles (limiter à 500 pour ne pas saturer localStorage)
     save('articles', state.articles.slice(0, 500));
-    state.loading = false;
     renderSidebar();
     renderArticles();
     updateLastRefresh();
@@ -1755,7 +1792,7 @@ const NF = (() => {
   }
 
   // ── Synchronisation cloud ──
-  const SYNC_URL = OGIMAGE_WORKER.replace('?url=', '').replace(/\/$/, '') + '/sync?key=';
+  const SYNC_URL = WORKER_BASE + '/sync?key=';
 
   async function pushSync() {
     const key = load('syncKey', '');
@@ -2237,9 +2274,11 @@ const NF = (() => {
     }
     renderSidebar();
     renderArticles();
-    refreshAll();
-    // Auto-refresh désactivé — utiliser le bouton manuel
-    // startAutoRefresh();
+    // Affichage instantané depuis le cache localStorage
+    // Le refresh est manuel (bouton ou pull-to-refresh)
+    if (state.articles.length > 0) {
+      updateLastRefresh();
+    }
   }
 
   document.addEventListener('DOMContentLoaded', init);
