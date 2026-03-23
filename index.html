@@ -1224,7 +1224,9 @@ const NF = (() => {
     const groups = deduplicateArticles(filtered);
     updateViewHeader(groups.length);
 
-    container.innerHTML = groups.map(g => renderArticleGroup(g)).join('');
+    // Reset le registre d'actions
+    Object.keys(_articleActions).forEach(k => delete _articleActions[k]);
+    container.innerHTML = groups.map((g, idx) => renderArticleGroup(g, idx)).join('');
   }
 
   function getFilteredArticles() {
@@ -1264,11 +1266,15 @@ const NF = (() => {
     document.getElementById('viewCount').textContent = count > 0 ? `${count} article${count > 1 ? 's' : ''}` : '';
   }
 
-  function renderArticleGroup(group) {
+  function renderArticleGroup(group, idx) {
     const a = group.main;
-    const isRead = state.readArticles.has(normalizeUrl(a.link));
-    const isBookmarked = state.bookmarks.has(normalizeUrl(a.link));
+    const nUrl = normalizeUrl(a.link);
+    const isRead = state.readArticles.has(nUrl);
+    const isBookmarked = state.bookmarks.has(nUrl);
     const catColors = getCssVar(getCategoryColor(a.category));
+
+    // Enregistrer les actions pour cet article
+    registerArticleActions(idx, nUrl, a.link, a.title);
 
     let dupHtml = '';
     if (group.duplicates.length > 0) {
@@ -1285,12 +1291,7 @@ const NF = (() => {
       </details>`;
     }
 
-    const nUrl = normalizeUrl(a.link);
-    const safeUrl = nUrl.replace(/&/g, '&amp;').replace(/"/g, '&quot;');
-    const safeLink = a.link.replace(/&/g, '&amp;').replace(/"/g, '&quot;');
-    const safeTitle = a.title.replace(/&/g, '&amp;').replace(/"/g, '&quot;');
-
-    return `<article class="nf-article ${isRead ? 'read' : ''}" data-link="${safeUrl}">
+    return `<article class="nf-article ${isRead ? 'read' : ''}" data-link="${nUrl.replace(/"/g, '&quot;')}">
       <div class="nf-swipe-hint left"><i class="bi bi-check2"></i></div>
       <div class="nf-swipe-hint right"><i class="bi bi-bookmark-fill"></i></div>
       <div class="nf-article-meta">
@@ -1301,18 +1302,18 @@ const NF = (() => {
       <div class="nf-article-body">
         <div class="nf-article-content">
           <div class="nf-article-title">
-            <a href="${safeLink}" target="_blank" rel="noopener" data-action="open" data-url="${safeUrl}">${a.title}</a>
+            <a href="${a.link}" target="_blank" rel="noopener" onclick="NF.articleAction(${idx},'open')">${a.title}</a>
           </div>
           <div class="nf-article-snippet">${a.snippet}</div>
           ${dupHtml}
           <div class="nf-article-actions">
-            <button data-action="bookmark" data-url="${safeUrl}" class="${isBookmarked ? 'bookmarked' : ''}" title="Favori">
+            <button onclick="event.stopPropagation();NF.articleAction(${idx},'bookmark')" class="${isBookmarked ? 'bookmarked' : ''}" title="Favori">
               <i class="bi bi-${isBookmarked ? 'bookmark-fill' : 'bookmark'}"></i>
             </button>
-            <button data-action="markread" data-url="${safeUrl}" title="${isRead ? 'Marquer comme non lu' : 'Marquer comme lu'}">
+            <button onclick="event.stopPropagation();NF.articleAction(${idx},'markread')" title="${isRead ? 'Marquer comme non lu' : 'Marquer comme lu'}">
               <i class="bi bi-${isRead ? 'arrow-counterclockwise' : 'check2'}"></i>
             </button>
-            <button data-action="share" data-url="${safeLink}" data-title="${safeTitle}" title="Partager">
+            <button onclick="event.stopPropagation();NF.articleAction(${idx},'share')" title="Partager">
               <i class="bi bi-share"></i>
             </button>
           </div>
@@ -2151,20 +2152,19 @@ const NF = (() => {
     setTimeout(() => { el.style.opacity = '0'; setTimeout(() => el.remove(), 300); }, 4000);
   }
 
-  // ── Event delegation pour les actions articles ──
-  document.addEventListener('click', (e) => {
-    // Remonter depuis la cible (peut être <i> dans le <button>)
-    let el = e.target;
-    while (el && !el.dataset?.action && el !== document.body) el = el.parentElement;
-    if (el && el.dataset?.action) {
-      const action = el.dataset.action;
-      const url = el.dataset.url;
-      if (action === 'bookmark') { e.preventDefault(); e.stopPropagation(); toggleBookmark(url); return; }
-      if (action === 'markread') { e.preventDefault(); e.stopPropagation(); markRead(url); return; }
-      if (action === 'share') { e.preventDefault(); e.stopPropagation(); shareArticle(url, el.dataset.title || ''); return; }
-      if (action === 'open') { markRead(url); }
-    }
-  }, true); // Phase capture pour intercepter avant les autres handlers
+  // ── Registre d'actions articles (évite les problèmes d'échappement inline) ──
+  const _articleActions = {};
+  function registerArticleActions(idx, normalizedUrl, rawLink, title) {
+    _articleActions[idx] = { normalizedUrl, rawLink, title };
+  }
+  function articleAction(idx, action) {
+    const a = _articleActions[idx];
+    if (!a) return;
+    if (action === 'bookmark') toggleBookmark(a.normalizedUrl);
+    else if (action === 'markread') markRead(a.normalizedUrl);
+    else if (action === 'share') shareArticle(a.rawLink, a.title);
+    else if (action === 'open') markRead(a.normalizedUrl);
+  }
 
   // ── Keyboard ──
   // Fermer les menus contextuels au clic extérieur
@@ -2318,7 +2318,7 @@ const NF = (() => {
     refreshAll, saveProxy, saveAndSync, addFeedTab,
     discoverFeeds, toggleDiscoverGroup, addDiscoveredFeeds,
     toggleFeedMenu, toggleFeedStar, toggleFeedEnabled,
-    openEditFeed, saveEditFeed
+    openEditFeed, saveEditFeed, articleAction
   };
 })();
 </script>
