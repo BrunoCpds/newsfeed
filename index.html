@@ -255,10 +255,12 @@
     }
     .nf-article-actions button {
       background: none; border: none; color: var(--muted); cursor: pointer;
-      font-size: 14px; padding: 4px; border-radius: 4px;
+      font-size: 16px; padding: 8px; border-radius: 6px;
       transition: color var(--transition-fast);
+      min-width: 36px; min-height: 36px;
+      display: flex; align-items: center; justify-content: center;
     }
-    .nf-article-actions button:hover { color: var(--primary); }
+    .nf-article-actions button:hover { color: var(--primary); background: var(--primary-soft); }
     .nf-article-actions button.bookmarked { color: var(--warn-text); }
 
     /* ── Empty state ── */
@@ -1283,7 +1285,12 @@ const NF = (() => {
       </details>`;
     }
 
-    return `<article class="nf-article ${isRead ? 'read' : ''}" data-link="${normalizeUrl(a.link)}">
+    const nUrl = normalizeUrl(a.link);
+    const safeUrl = nUrl.replace(/&/g, '&amp;').replace(/"/g, '&quot;');
+    const safeLink = a.link.replace(/&/g, '&amp;').replace(/"/g, '&quot;');
+    const safeTitle = a.title.replace(/&/g, '&amp;').replace(/"/g, '&quot;');
+
+    return `<article class="nf-article ${isRead ? 'read' : ''}" data-link="${safeUrl}">
       <div class="nf-swipe-hint left"><i class="bi bi-check2"></i></div>
       <div class="nf-swipe-hint right"><i class="bi bi-bookmark-fill"></i></div>
       <div class="nf-article-meta">
@@ -1294,18 +1301,18 @@ const NF = (() => {
       <div class="nf-article-body">
         <div class="nf-article-content">
           <div class="nf-article-title">
-            <a href="${a.link}" target="_blank" rel="noopener" onclick="NF.markRead('${normalizeUrl(a.link)}')">${a.title}</a>
+            <a href="${safeLink}" target="_blank" rel="noopener" data-action="open" data-url="${safeUrl}">${a.title}</a>
           </div>
           <div class="nf-article-snippet">${a.snippet}</div>
           ${dupHtml}
           <div class="nf-article-actions">
-            <button onclick="NF.toggleBookmark('${normalizeUrl(a.link)}')" class="${isBookmarked ? 'bookmarked' : ''}" title="Favori">
+            <button data-action="bookmark" data-url="${safeUrl}" class="${isBookmarked ? 'bookmarked' : ''}" title="Favori">
               <i class="bi bi-${isBookmarked ? 'bookmark-fill' : 'bookmark'}"></i>
             </button>
-            <button onclick="NF.markRead('${normalizeUrl(a.link)}')" title="Marquer comme lu">
+            <button data-action="markread" data-url="${safeUrl}" title="Marquer comme lu">
               <i class="bi bi-check2"></i>
             </button>
-            <button onclick="NF.shareArticle('${a.link}','${a.title.replace(/'/g, "\\'")}')" title="Partager">
+            <button data-action="share" data-url="${safeLink}" data-title="${safeTitle}" title="Partager">
               <i class="bi bi-share"></i>
             </button>
           </div>
@@ -2138,6 +2145,19 @@ const NF = (() => {
     container.appendChild(el);
     setTimeout(() => { el.style.opacity = '0'; setTimeout(() => el.remove(), 300); }, 4000);
   }
+
+  // ── Event delegation pour les actions articles ──
+  document.addEventListener('click', (e) => {
+    const actionEl = e.target.closest('[data-action]');
+    if (actionEl) {
+      const action = actionEl.dataset.action;
+      const url = actionEl.dataset.url;
+      if (action === 'bookmark') { e.preventDefault(); e.stopPropagation(); toggleBookmark(url); }
+      else if (action === 'markread') { e.preventDefault(); e.stopPropagation(); markRead(url); }
+      else if (action === 'share') { e.preventDefault(); e.stopPropagation(); shareArticle(url, actionEl.dataset.title || ''); }
+      else if (action === 'open') { markRead(url); }
+    }
+  });
 
   // ── Keyboard ──
   // Fermer les menus contextuels au clic extérieur
