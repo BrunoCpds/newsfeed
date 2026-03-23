@@ -2153,16 +2153,18 @@ const NF = (() => {
 
   // ── Event delegation pour les actions articles ──
   document.addEventListener('click', (e) => {
-    const actionEl = e.target.closest('[data-action]');
-    if (actionEl) {
-      const action = actionEl.dataset.action;
-      const url = actionEl.dataset.url;
-      if (action === 'bookmark') { e.preventDefault(); e.stopPropagation(); toggleBookmark(url); }
-      else if (action === 'markread') { e.preventDefault(); e.stopPropagation(); markRead(url); }
-      else if (action === 'share') { e.preventDefault(); e.stopPropagation(); shareArticle(url, actionEl.dataset.title || ''); }
-      else if (action === 'open') { markRead(url); }
+    // Remonter depuis la cible (peut être <i> dans le <button>)
+    let el = e.target;
+    while (el && !el.dataset?.action && el !== document.body) el = el.parentElement;
+    if (el && el.dataset?.action) {
+      const action = el.dataset.action;
+      const url = el.dataset.url;
+      if (action === 'bookmark') { e.preventDefault(); e.stopPropagation(); toggleBookmark(url); return; }
+      if (action === 'markread') { e.preventDefault(); e.stopPropagation(); markRead(url); return; }
+      if (action === 'share') { e.preventDefault(); e.stopPropagation(); shareArticle(url, el.dataset.title || ''); return; }
+      if (action === 'open') { markRead(url); }
     }
-  });
+  }, true); // Phase capture pour intercepter avant les autres handlers
 
   // ── Keyboard ──
   // Fermer les menus contextuels au clic extérieur
