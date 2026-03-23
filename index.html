@@ -262,6 +262,7 @@
     }
     .nf-article-actions button:hover { color: var(--primary); background: var(--primary-soft); }
     .nf-article-actions button.bookmarked { color: var(--warn-text); }
+    .nf-article-actions button i { pointer-events: none; }
 
     /* ── Empty state ── */
     .nf-empty {
@@ -682,8 +683,7 @@ const NF = (() => {
   const WORKER_OG = WORKER_BASE + '/og?url=';
   const CORS_PROXIES = [
     { name: 'worker', url: WORKER_RSS },
-    { name: 'codetabs', url: 'https://api.codetabs.com/v1/proxy?quest=' },
-    { name: 'allorigins', url: 'https://api.allorigins.win/raw?url=' },
+    { name: 'corsproxy', url: 'https://api.cors.lol/?url=' },
   ];
   const DEFAULT_PROXY = WORKER_RSS;
   const CATEGORY_COLORS = ['cat-a','cat-b','cat-c','cat-d','cat-e','cat-f'];
@@ -742,13 +742,27 @@ const NF = (() => {
   const URL_MIGRATIONS = {
     'http://www.mac4ever.com/syndication/news.rss': 'https://www.mac4ever.com/flux/rss/content/all',
     'https://www.mac4ever.com/syndication/news.rss': 'https://www.mac4ever.com/flux/rss/content/all',
+    'http://www.francetvinfo.fr/france.rss': 'https://www.franceinfo.fr/france.rss',
+    'http://www.francetvinfo.fr/politique.rss': 'https://www.franceinfo.fr/politique.rss',
+    'http://www.francetvinfo.fr/economie.rss': 'https://www.franceinfo.fr/economie.rss',
+    'http://www.francetvinfo.fr/monde.rss': 'https://www.franceinfo.fr/monde.rss',
+    'http://www.francetvinfo.fr/culture.rss': 'https://www.franceinfo.fr/culture.rss',
+    'http://www.francetvinfo.fr/sports.rss': 'https://www.franceinfo.fr/sports.rss',
+    'http://www.francetvinfo.fr/sante.rss': 'https://www.franceinfo.fr/sante.rss',
+    'http://www.francetvinfo.fr/sciences.rss': 'https://www.franceinfo.fr/sciences.rss',
   };
 
   function migrateFeeds() {
     let changed = false;
     state.feeds.forEach(f => {
+      // Migrations exactes
       if (URL_MIGRATIONS[f.url]) {
         f.url = URL_MIGRATIONS[f.url];
+        changed = true;
+      }
+      // Migration générique francetvinfo → franceinfo + http → https
+      if (f.url.includes('francetvinfo.fr')) {
+        f.url = f.url.replace('francetvinfo.fr', 'franceinfo.fr').replace('http://', 'https://');
         changed = true;
       }
     });
