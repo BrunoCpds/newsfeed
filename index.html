@@ -1309,8 +1309,8 @@ const NF = (() => {
             <button data-action="bookmark" data-url="${safeUrl}" class="${isBookmarked ? 'bookmarked' : ''}" title="Favori">
               <i class="bi bi-${isBookmarked ? 'bookmark-fill' : 'bookmark'}"></i>
             </button>
-            <button data-action="markread" data-url="${safeUrl}" title="Marquer comme lu">
-              <i class="bi bi-check2"></i>
+            <button data-action="markread" data-url="${safeUrl}" title="${isRead ? 'Marquer comme non lu' : 'Marquer comme lu'}">
+              <i class="bi bi-${isRead ? 'arrow-counterclockwise' : 'check2'}"></i>
             </button>
             <button data-action="share" data-url="${safeLink}" data-title="${safeTitle}" title="Partager">
               <i class="bi bi-share"></i>
@@ -1389,8 +1389,13 @@ const NF = (() => {
   }
 
   function markRead(normalizedUrl) {
-    state.readArticles.add(normalizedUrl);
+    if (state.readArticles.has(normalizedUrl)) {
+      state.readArticles.delete(normalizedUrl);
+    } else {
+      state.readArticles.add(normalizedUrl);
+    }
     save('readArticles', state.readArticles);
+    renderSidebar();
     renderArticles();
   }
 
