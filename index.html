@@ -1241,6 +1241,16 @@ const NF = (() => {
     // Reset le registre d'actions
     Object.keys(_articleActions).forEach(k => delete _articleActions[k]);
     container.innerHTML = groups.map((g, idx) => renderArticleGroup(g, idx)).join('');
+
+    // Attacher les événements après le rendu DOM
+    groups.forEach((g, idx) => {
+      const bk = document.getElementById('bk-' + idx);
+      const mr = document.getElementById('mr-' + idx);
+      const sh = document.getElementById('sh-' + idx);
+      if (bk) bk.addEventListener('click', () => articleAction(idx, 'bookmark'));
+      if (mr) mr.addEventListener('click', () => articleAction(idx, 'markread'));
+      if (sh) sh.addEventListener('click', () => articleAction(idx, 'share'));
+    });
   }
 
   function getFilteredArticles() {
@@ -1320,14 +1330,14 @@ const NF = (() => {
           </div>
           <div class="nf-article-snippet">${a.snippet}</div>
           ${dupHtml}
-          <div class="nf-article-actions">
-            <button onclick="event.stopPropagation();NF.articleAction(${idx},'bookmark')" class="${isBookmarked ? 'bookmarked' : ''}" title="Favori">
+          <div class="nf-article-actions" onclick="event.stopPropagation()">
+            <button id="bk-${idx}" title="Favori" class="${isBookmarked ? 'bookmarked' : ''}">
               <i class="bi bi-${isBookmarked ? 'bookmark-fill' : 'bookmark'}"></i>
             </button>
-            <button onclick="event.stopPropagation();NF.articleAction(${idx},'markread')" title="${isRead ? 'Marquer comme non lu' : 'Marquer comme lu'}">
+            <button id="mr-${idx}" title="${isRead ? 'Marquer comme non lu' : 'Marquer comme lu'}">
               <i class="bi bi-${isRead ? 'arrow-counterclockwise' : 'check2'}"></i>
             </button>
-            <button onclick="event.stopPropagation();NF.articleAction(${idx},'share')" title="Partager">
+            <button id="sh-${idx}" title="Partager">
               <i class="bi bi-share"></i>
             </button>
           </div>
