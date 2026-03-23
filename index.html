@@ -2149,16 +2149,16 @@ const NF = (() => {
     if (autoRefreshTimer) { clearInterval(autoRefreshTimer); autoRefreshTimer = null; }
   }
 
-  // Refresh au retour sur l'onglet après > 5 min
-  document.addEventListener('visibilitychange', () => {
-    if (!document.hidden) {
-      const elapsed = Date.now() - lastRefreshTime;
-      if (elapsed > VISIBILITY_THRESHOLD_MS && !state.loading) {
-        console.log('[NewsFeed] Refresh au retour (absent ' + Math.round(elapsed / 60000) + ' min)');
-        refreshAll();
-      }
-    }
-  });
+  // Refresh au retour sur l'onglet — désactivé (refresh manuel uniquement)
+  // document.addEventListener('visibilitychange', () => {
+  //   if (!document.hidden) {
+  //     const elapsed = Date.now() - lastRefreshTime;
+  //     if (elapsed > VISIBILITY_THRESHOLD_MS && !state.loading) {
+  //       console.log('[NewsFeed] Refresh au retour (absent ' + Math.round(elapsed / 60000) + ' min)');
+  //       refreshAll();
+  //     }
+  //   }
+  // });
 
   // ── Pull-to-refresh (mobile) ──
   let touchStartY = 0;
@@ -2238,7 +2238,8 @@ const NF = (() => {
     renderSidebar();
     renderArticles();
     refreshAll();
-    startAutoRefresh();
+    // Auto-refresh désactivé — utiliser le bouton manuel
+    // startAutoRefresh();
   }
 
   document.addEventListener('DOMContentLoaded', init);
